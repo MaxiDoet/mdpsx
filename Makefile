@@ -1,6 +1,6 @@
-objs := mdpsx.o log.o cpu/r3000.o mem/mem.o
+objs := mdpsx.o log.o cpu/r3000.o mem/mem.o renderer.o glad.o
 
-CFLAGS := -Iinclude -Wbuiltin-declaration-mismatch
+CFLAGS := -Iinclude -lglfw -lGL
 
 all: mdpsx
 

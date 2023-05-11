@@ -5,10 +5,12 @@
 
 #include "cpu/r3000.h"
 #include "mem/mem.h"
+#include "renderer.h"
 #include "log.h"
 
 r3000_state_t r3000_state;
 mem_state_t mem_state;
+renderer_t renderer;
 
 int main()
 {
@@ -35,7 +37,35 @@ int main()
     r3000_add_breakpoint(&r3000_state, 0x00000F2C, "ResetEntryInt");
     r3000_add_breakpoint(&r3000_state, 0xBFC06FF0, "LoadRunShell");
 
-    while(true) {
-        r3000_step(&r3000_state, &mem_state);
+    /* Init GLFW */
+    if (!glfwInit()) {
+        log_error("mdpsx", "Failed to init GLFW");
+        exit(0);
     }
+
+    /* Set OpenGL version */
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+
+    /* Create window */
+    GLFWwindow *window = glfwCreateWindow(800, 600, "mdpsx", NULL, NULL);
+
+    if (!window) {
+        log_error("mdpsx", "Failed to init window");
+        exit(0);
+    }
+
+    renderer_init(&renderer, window);
+
+    while(!glfwWindowShouldClose(window)) {
+        r3000_step(&r3000_state, &mem_state);
+
+        renderer_render(&renderer);
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }
