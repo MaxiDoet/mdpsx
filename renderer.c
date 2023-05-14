@@ -8,8 +8,6 @@ void renderer_init(renderer_t *renderer, GLFWwindow *window)
 {
     renderer->window = window;
 
-    glfwMakeContextCurrent(renderer->window);
-
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         log_error("renderer", "Failed to load glad");
         exit(0);

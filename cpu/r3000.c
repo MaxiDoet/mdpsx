@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #include "cpu/r3000.h"
@@ -85,9 +86,11 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         r3000_state->load_delay_done = false;
     }
 
+    /*
     if (r3000_state->pc == 0xbfc0195c) {
         r3000_state->pc = 0xbfc01a38;
     }
+    */
 
     uint32_t instruction = mem_read(mem_state, MEM_SIZE_DWORD, r3000_state->pc);
 
@@ -118,7 +121,11 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
     uint32_t target_address = (instruction & 0x03FFFFFF);
 
     #ifdef LOG_DEBUG_R3000
-    log_debug("R3000", "pc: %06x | %s (%x) | opcode: %x funct: %x rs: %s rt: %s rd: %s imm: %x target_address: %x a1: %x\n", r3000_state->pc - 4, opcode ? r3000_primary_opcode_names[opcode] : r3000_secondary_opcode_names[funct], instruction, opcode, funct, r3000_register_names[rs], r3000_register_names[rt], r3000_register_names[rd], imm, target_address, r3000_state->regs[R3000_REG_A1]);
+    log_debug("R3000", "pc: %08x | %s (%08x) | rs: %s rt: %s rd: %s imm: %x addr: %x | at: %x v0: %x v1: %x a0: %x a1: %x a2: %x a3: %x t0: %x t1: %x t2: %x t3: %x t4: %x t5: %x t6: %x t7: %x sp: %x ra: %x\n", r3000_state->pc - 4, opcode ? r3000_primary_opcode_names[opcode] : r3000_secondary_opcode_names[funct], instruction, r3000_register_names[rs], r3000_register_names[rt], r3000_register_names[rd], imm, target_address,
+        r3000_state->regs[R3000_REG_AT], r3000_state->regs[R3000_REG_V0], r3000_state->regs[R3000_REG_V1], r3000_state->regs[R3000_REG_A0], r3000_state->regs[R3000_REG_A1], r3000_state->regs[R3000_REG_A2], r3000_state->regs[R3000_REG_A3], r3000_state->regs[R3000_REG_T0],
+        r3000_state->regs[R3000_REG_T1], r3000_state->regs[R3000_REG_T2], r3000_state->regs[R3000_REG_T3], r3000_state->regs[R3000_REG_T4], r3000_state->regs[R3000_REG_T5], r3000_state->regs[R3000_REG_T6], r3000_state->regs[R3000_REG_T7], r3000_state->regs[R3000_REG_SP],
+        r3000_state->regs[R3000_REG_RA]
+    );
     #endif
 
     /* SPECIAL */
@@ -132,8 +139,6 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
             case 0x07: opcode_srav(r3000_state, mem_state, rs, rt, rd); break;
             case 0x08: opcode_jr(r3000_state, mem_state, rs); break;
             case 0x09: opcode_jalr(r3000_state, mem_state, rs, rd); break;
-            case 0x0C: break;
-            case 0x0D: break;
             case 0x10: opcode_mfhi(r3000_state, mem_state, rd); break;
             case 0x11: opcode_mthi(r3000_state, mem_state, rs); break;
             case 0x12: opcode_mflo(r3000_state, mem_state, rd); break;
@@ -152,12 +157,11 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
             case 0x27: opcode_nor(r3000_state, mem_state, rs, rt, rd); break;
             case 0x2A: opcode_slt(r3000_state, mem_state, rs, rt, rd); break;
             case 0x2B: opcode_sltu(r3000_state, mem_state, rs, rt, rd); break;
-            default: break;
+            default: exit(0); break;
         }
     } else {
         switch(opcode) {
-            case 0x00: break;
-            case 0x01: break;
+            case 0x01: opcode_bcondz(r3000_state, mem_state, rs, rt, imm); break;
             case 0x02: opcode_j(r3000_state, mem_state, target_address); break;
             case 0x03: opcode_jal(r3000_state, mem_state, target_address); break;
             case 0x04: opcode_beq(r3000_state, mem_state, rs, rt, imm); break;
@@ -173,30 +177,15 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
             case 0x0E: opcode_xori(r3000_state, mem_state, rs, rt, imm); break;
             case 0x0F: opcode_lui(r3000_state, mem_state, rs, rt, imm); break;
             case 0x10: opcode_cop0(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x11: break;
-            case 0x12: break;
-            case 0x13: break;
             case 0x20: opcode_lb(r3000_state, mem_state, rs, rt, imm); break;
             case 0x21: opcode_lh(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x22: break;
             case 0x23: opcode_lw(r3000_state, mem_state, rs, rt, imm); break;
             case 0x24: opcode_lbu(r3000_state, mem_state, rs, rt, imm); break;
             case 0x25: opcode_lhu(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x26: break;
             case 0x28: opcode_sb(r3000_state, mem_state, rs, rt, imm); break;
             case 0x29: opcode_sh(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x2A: break;
             case 0x2B: opcode_sw(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x2E: break;
-            case 0x30: break;
-            case 0x31: break;
-            case 0x32: break;
-            case 0x33: break;
-            case 0x38: break;
-            case 0x39: break;
-            case 0x3A: break;
-            case 0x3B: break;
-            default: break;
+            default: exit(0); break;
         }
     }
 

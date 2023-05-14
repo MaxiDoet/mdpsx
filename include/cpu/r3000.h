@@ -38,17 +38,19 @@
 #define R3000_REG_FP        30
 #define R3000_REG_RA        31
 
-#define R3000_COP0_REG_BPC      3
-#define R3000_COP0_REG_BDA      5
-#define R3000_COP0_REG_JUMPDEST 6
-#define R3000_COP0_REG_DCIC     7
-#define R3000_COP0_REG_BADVADDR 8
-#define R3000_COP0_REG_BDAM     9
-#define R3000_COP0_REG_BPCM     11
-#define R3000_COP0_REG_SR       12
-#define R3000_COP0_REG_CAUSE    13
-#define R3000_COP0_REG_EPC      14
-#define R3000_COP0_REG_PRID     15
+#define COP0_REG_BPC      3
+#define COP0_REG_BDA      5
+#define COP0_REG_JUMPDEST 6
+#define COP0_REG_DCIC     7
+#define COP0_REG_BADVADDR 8
+#define COP0_REG_BDAM     9
+#define COP0_REG_BPCM     11
+#define COP0_REG_SR       12
+#define COP0_REG_CAUSE    13
+#define COP0_REG_EPC      14
+#define COP0_REG_PRID     15
+
+#define COP0_SR_ISC (1 << 16)
 
 static const char *r3000_register_names[] = {
     "zero", "at", "v0", "v1", "a0", "a1", "a2", "v2",

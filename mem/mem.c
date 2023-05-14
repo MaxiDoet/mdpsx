@@ -22,10 +22,14 @@ uint32_t mem_read(mem_state_t *state, uint8_t size, uint32_t addr)
 
     uint32_t phy_addr = addr & mem_segment_map[addr >> 29];
 
-    if (phy_addr >= 0x00000000 && phy_addr <= 0x001FFFFF) {
-        result = *((uint32_t *) &state->ram[phy_addr]);
-    } else if (phy_addr >= 0x1FC00000 && phy_addr <= 0x1FC80000) {
-        result = *((uint32_t *) &state->bios[phy_addr - 0x1FC00000]);
+    if (phy_addr < 0x1F000000) {
+        result = *((uint32_t *) &state->ram[phy_addr & 0x1FFFFF]);
+    } else if (phy_addr < 0x1F800000) {
+        result = 0xFF;
+    } else if (phy_addr < 0x1FC80000) {
+        result = *((uint32_t *) &state->bios[phy_addr & 0x7FFFF]);
+    } else {
+        log_debug("MEM", "read addr: %x\n", addr);
     }
 
     if (size == MEM_SIZE_BYTE) {
@@ -35,7 +39,7 @@ uint32_t mem_read(mem_state_t *state, uint8_t size, uint32_t addr)
     }
 
     #ifdef LOG_DEBUG_MEM_READ
-    log_debug("MEM", "%08x <- %08x\n", result, addr);
+    log_debug("MEM", "%08x <- %08x (%08x)\n", result, addr, phy_addr);
     #endif
 
     return result;
@@ -53,7 +57,7 @@ uint32_t mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t val
         value &= 0xFFFF;
     }
 
-    if (phy_addr >= 0x00000000 && phy_addr <= 0x001FFFFF) {
+    if (phy_addr < 0x1F000000) {
         *((uint32_t *) &state->ram[phy_addr]) = value; // Todo: Only write the bits that need to be written
     } else if (phy_addr == 0x1F801070) {
         #ifdef LOG_DEBUG_MEM_WRITE_IO
@@ -79,10 +83,16 @@ uint32_t mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t val
 
         printf("\n");
         #endif
+    } else if (phy_addr == 0x1F802041) {
+        #ifdef LOG_DEBUG_MEM_WRITE_IO
+        log_debug("MEM", "POST %x\n", value);
+        #endif
+    } else {
+        log_debug("MEM", "write addr: %x\n", addr);
     }
 
     #ifdef LOG_DEBUG_MEM_WRITE
-    log_debug("MEM", "%08x -> %08x\n", value, addr);
+    log_debug("MEM", "%08x -> %08x (%08x)\n", value, addr, phy_addr);
     #endif
 
     return result;

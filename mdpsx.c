@@ -55,6 +55,9 @@ int main()
         exit(0);
     }
 
+    glfwSwapInterval(1);
+    glfwMakeContextCurrent(window);
+
     renderer_init(&renderer, window);
 
     while(!glfwWindowShouldClose(window)) {
@@ -62,7 +65,7 @@ int main()
 
         renderer_render(&renderer);
 
-        glfwSwapBuffers(window);
+        //glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
