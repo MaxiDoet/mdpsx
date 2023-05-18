@@ -140,14 +140,14 @@ void opcode_sltu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 
 void opcode_slti(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = ((int32_t) r3000_state->regs[rs] < (int16_t) imm) ? 1 : 0;
+    uint32_t result = ((int32_t) r3000_state->regs[rs] < (int32_t) (int16_t) imm) ? 1 : 0;
 
     r3000_state->regs[rt] = result;
 }
 
 void opcode_sltiu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = (r3000_state->regs[rs] < (int16_t) imm) ? 1 : 0;
+    uint32_t result = (r3000_state->regs[rs] < (uint32_t) (int16_t) imm) ? 1 : 0;
 
     r3000_state->regs[rt] = result;
 }
@@ -175,7 +175,7 @@ void opcode_xor(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, 
 
 void opcode_nor(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd)
 {
-    uint32_t result = ~(r3000_state->regs[rs] & r3000_state->regs[rt]);
+    uint32_t result = ~(r3000_state->regs[rs] | r3000_state->regs[rt]);
 
     r3000_state->regs[rd] = result;
 }
@@ -327,74 +327,68 @@ void opcode_jalr(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 void opcode_beq(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
     if (r3000_state->regs[rs] == r3000_state->regs[rt]) {
-        r3000_branch(r3000_state, (int32_t) r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bne(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
     if (r3000_state->regs[rs] != r3000_state->regs[rt]) {
-        r3000_branch(r3000_state, (int32_t) r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bcondz(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
+    /*
     bool branch = false;
     bool link = false;
 
     if (rt == 0) {
-        /* BLTZ */
         branch = ((int32_t) r3000_state->regs[rs] < 0);
     } else if (rt == 1) {
-        /* BGEZ */
         branch = ((int32_t) r3000_state->regs[rs] >= 0);
     } else if (rt == 16) {
-        /* BLTZAL */
         branch = ((int32_t) r3000_state->regs[rs] < 0);
         link = true;
     } else if (rt == 17) {
-        /* BGEZAL */
         branch = ((int32_t) r3000_state->regs[rs] >= 0);
         link = true;
     }
 
     if (branch) {
-        r3000_branch(r3000_state, (int32_t) r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 
     if (link) {
         r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 4;
     }
+    */
 
-    printf("rt: %d rs: %d (rs): %d imm: %d | branch: %d link: %d\n", rt, rs, r3000_state->regs[rs], imm, branch ? 1 : 0, link ? 1 : 0);
-}
+    uint8_t opcode = rt;
+    bool should_link = ((opcode & 0x1E) == 0x10);
+    bool should_branch = ((int32_t)(r3000_state->regs[rs] ^ (opcode << 31)) < 0);
 
-void opcode_bltz(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint16_t imm)
-{
-    if (r3000_state->regs[rs] < 0) {
-        r3000_branch(r3000_state, (int32_t) r3000_state->pc + ((int16_t) imm << 2));
+    if (should_link) {
+        r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 4;
     }
-}
 
-void opcode_bgez(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint16_t imm)
-{
-    if (r3000_state->regs[rs] >= 0) {
-        r3000_branch(r3000_state, (int32_t) r3000_state->pc + ((int16_t) imm << 2));
+    if (should_branch) {
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bgtz(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint16_t imm)
 {
     if ((int32_t) r3000_state->regs[rs] > 0) {
-        r3000_branch(r3000_state, (int32_t) r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_blez(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint16_t imm)
 {
     if ((int32_t) r3000_state->regs[rs] <= 0) {
-        r3000_branch(r3000_state, (int32_t) r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 

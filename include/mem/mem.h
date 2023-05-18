@@ -19,6 +19,6 @@ typedef struct mem_state_t {
 } mem_state_t;
 
 uint32_t mem_read(mem_state_t *state, uint8_t size, uint32_t addr);
-uint32_t mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t value);
+void mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t value);
 
 #endif

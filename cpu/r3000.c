@@ -41,7 +41,6 @@ const char *r3000_primary_opcode_types[] = {
 };
 */
 
-/* Some opcodes have a delay which means the registers only changes after the next opcode completes */
 void r3000_enqueue_load(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rt, uint32_t value)
 {
     r3000_state->load = true;
@@ -86,11 +85,9 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         r3000_state->load_delay_done = false;
     }
 
-    /*
-    if (r3000_state->pc == 0xbfc0195c) {
-        r3000_state->pc = 0xbfc01a38;
+    if (r3000_state->pc == 0xbfc018d4) {
+        r3000_state->pc = 0xBFC01910;
     }
-    */
 
     uint32_t instruction = mem_read(mem_state, MEM_SIZE_DWORD, r3000_state->pc);
 

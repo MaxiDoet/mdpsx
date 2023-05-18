@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "mem/mem.h"
@@ -23,9 +24,21 @@ uint32_t mem_read(mem_state_t *state, uint8_t size, uint32_t addr)
     uint32_t phy_addr = addr & mem_segment_map[addr >> 29];
 
     if (phy_addr < 0x1F000000) {
-        result = *((uint32_t *) &state->ram[phy_addr & 0x1FFFFF]);
+        if (size == MEM_SIZE_BYTE) {
+            result = *((uint8_t *) &state->ram[phy_addr & 0x1FFFFF]);
+        } else if (size == MEM_SIZE_WORD) {
+            result = *((uint16_t *) &state->ram[phy_addr & 0x1FFFFF]);
+        } else {
+            result = *((uint32_t *) &state->ram[phy_addr & 0x1FFFFF]);
+        }
     } else if (phy_addr < 0x1F800000) {
         result = 0xFF;
+    } else if (phy_addr >= 0x1F801000 && phy_addr <= 0x1F801060) {
+        result = 0x00;
+    } else if (phy_addr == 0x1F801070) {
+        result = state->i_stat;
+    } else if (phy_addr == 0x1F801074) {
+        result = state->i_mask;
     } else if (phy_addr < 0x1FC80000) {
         result = *((uint32_t *) &state->bios[phy_addr & 0x7FFFF]);
     } else {
@@ -45,10 +58,8 @@ uint32_t mem_read(mem_state_t *state, uint8_t size, uint32_t addr)
     return result;
 }
 
-uint32_t mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t value)
+void mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t value)
 {
-    uint32_t result = 0;
-
     uint32_t phy_addr = addr & mem_segment_map[addr >> 29];
 
     if (size == MEM_SIZE_BYTE) {
@@ -58,9 +69,17 @@ uint32_t mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t val
     }
 
     if (phy_addr < 0x1F000000) {
-        *((uint32_t *) &state->ram[phy_addr]) = value; // Todo: Only write the bits that need to be written
+        if (size == MEM_SIZE_BYTE) {
+            *((uint8_t *) &state->ram[phy_addr]) = value;
+        } else if (size == MEM_SIZE_WORD) {
+            *((uint16_t *) &state->ram[phy_addr]) = value;
+        } else {
+            *((uint32_t *) &state->ram[phy_addr]) = value;
+        }
     } else if (phy_addr == 0x1F801070) {
         #ifdef LOG_DEBUG_MEM_WRITE_IO
+        state->i_stat = value;
+
         log_debug("MEM", "%x -> I_STAT | ", value);
 
         for (uint8_t i=0; i < 10; i++) {
@@ -73,6 +92,8 @@ uint32_t mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t val
         #endif
     } else if (phy_addr == 0x1F801074) {
         #ifdef LOG_DEBUG_MEM_WRITE_IO
+        state->i_mask = value;
+
         log_debug("MEM", "%x -> I_MASK | ", value);
 
         for (uint8_t i=0; i < 10; i++) {
@@ -92,8 +113,6 @@ uint32_t mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t val
     }
 
     #ifdef LOG_DEBUG_MEM_WRITE
-    log_debug("MEM", "%08x -> %08x (%08x)\n", value, addr, phy_addr);
+    log_debug("MEM", "%08x -> %08x (%08x) | test: %08x\n", value, addr, phy_addr, mem_read(state, size, addr));
     #endif
-
-    return result;
 }
