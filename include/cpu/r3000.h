@@ -52,6 +52,10 @@
 
 #define COP0_SR_ISC (1 << 16)
 
+#define DELAY_SLOT_STATE_ARMED          1
+#define DELAY_SLOT_STATE_DELAY_CYCLE    2
+#define DELAY_SLOT_STATE_DONE           3
+
 static const char *r3000_register_names[] = {
     "zero", "at", "v0", "v1", "a0", "a1", "a2", "v2",
     "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
@@ -105,16 +109,12 @@ typedef struct r3000_state_t {
 
     uint32_t pc;
 
-    bool branch;
-    bool branch_delay_slot;
-    bool branch_delay_slot_done;
+    uint8_t branch_delay_slot_state;
     uint32_t branch_addr;
 
-    bool load;
+    uint8_t load_delay_slot_state;
     uint8_t load_delay_register;
     uint32_t load_delay_value;
-    bool load_delay;
-    bool load_delay_done;
 
     uint32_t i_stat;
     uint32_t i_mask;

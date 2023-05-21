@@ -43,7 +43,7 @@ const char *r3000_primary_opcode_types[] = {
 
 void r3000_enqueue_load(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rt, uint32_t value)
 {
-    r3000_state->load = true;
+    r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_ARMED;
 
     r3000_state->load_delay_register = rt;
     r3000_state->load_delay_value = value;
@@ -51,7 +51,7 @@ void r3000_enqueue_load(r3000_state_t *r3000_state, mem_state_t *mem_state, uint
 
 void r3000_branch(r3000_state_t *r3000_state, uint32_t addr)
 {
-    r3000_state->branch = true;
+    r3000_state->branch_delay_slot_state = DELAY_SLOT_STATE_ARMED;
     r3000_state->branch_addr = addr;
 }
 
@@ -63,30 +63,20 @@ void r3000_add_breakpoint(r3000_state_t *r3000_state, uint32_t pc, char *name)
 
 void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
 {
-    if (r3000_state->branch && !r3000_state->branch_delay_slot_done) {
-        r3000_state->branch_delay_slot = true;
-    } else if (r3000_state->branch_delay_slot_done) {
+    if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_ARMED) {
+        r3000_state->branch_delay_slot_state = DELAY_SLOT_STATE_DELAY_CYCLE;
+    } else if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_DONE) {
         r3000_state->pc = r3000_state->branch_addr;
 
-        r3000_state->branch = false;
-        r3000_state->branch_addr = 0;
-        r3000_state->branch_delay_slot = false;
-        r3000_state->branch_delay_slot_done = false;
+        r3000_state->branch_delay_slot_state = 0;
     }
 
-    if (r3000_state->load && !r3000_state->load_delay_done) {
-        r3000_state->load_delay = true;
-    } else if (r3000_state->load_delay_done) {
+    if (r3000_state->load_delay_slot_state == DELAY_SLOT_STATE_ARMED) {
+        r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_DELAY_CYCLE;
+    } else if (r3000_state->load_delay_slot_state == DELAY_SLOT_STATE_DONE) {
         r3000_state->regs[r3000_state->load_delay_register] = r3000_state->load_delay_value;
-
-        r3000_state->load = false;
-        r3000_state->load_delay_value = 0;
-        r3000_state->load_delay = false;
-        r3000_state->load_delay_done = false;
-    }
-
-    if (r3000_state->pc == 0xbfc018d4) {
-        r3000_state->pc = 0xBFC01910;
+        
+        r3000_state->load_delay_slot_state = 0;
     }
 
     uint32_t instruction = mem_read(mem_state, MEM_SIZE_DWORD, r3000_state->pc);
@@ -96,7 +86,7 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         if (r3000_state->breakpoints[i].pc == r3000_state->pc) {
             log_debug("breakpoint", "%s\n", r3000_state->breakpoints[i].name);
         }
-    } 
+    }
     #endif
 
     r3000_state->pc += 4;
@@ -124,6 +114,9 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         r3000_state->regs[R3000_REG_RA]
     );
     #endif
+
+    /* R0 needs to be zero */
+    r3000_state->regs[0] = 0;
 
     /* SPECIAL */
     if (!opcode) {
@@ -186,11 +179,11 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         }
     }
 
-    if (r3000_state->branch_delay_slot) {
-        r3000_state->branch_delay_slot_done = true;
+    if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_DELAY_CYCLE) {
+        r3000_state->branch_delay_slot_state = DELAY_SLOT_STATE_DONE;
     }
 
-    if (r3000_state->load_delay) {
-        r3000_state->load_delay_done = true;
+    if (r3000_state->load_delay_slot_state == DELAY_SLOT_STATE_DELAY_CYCLE) {
+        r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_DONE;
     }
 }

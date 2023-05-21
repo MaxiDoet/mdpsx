@@ -11,73 +11,74 @@
 
 void opcode_lb(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint8_t value = (int8_t) mem_read(mem_state, MEM_SIZE_BYTE, r3000_state->regs[rs] + (int16_t) imm);
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint8_t value = (int8_t) mem_read(mem_state, MEM_SIZE_BYTE, r3000_state->regs[rs] + (int16_t) imm);
 
-    r3000_enqueue_load(r3000_state, mem_state, rt, value);
+        r3000_enqueue_load(r3000_state, mem_state, rt, value);
+    }
 }
 
 void opcode_lbu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint8_t value = (uint8_t) mem_read(mem_state, MEM_SIZE_BYTE, r3000_state->regs[rs] + (int16_t) imm);
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint8_t value = (uint8_t) mem_read(mem_state, MEM_SIZE_BYTE, r3000_state->regs[rs] + (int16_t) imm);
 
-    r3000_enqueue_load(r3000_state, mem_state, rt, value);
+        r3000_enqueue_load(r3000_state, mem_state, rt, value);
+    }
 }
 
 void opcode_lh(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint16_t value = (int16_t) mem_read(mem_state, MEM_SIZE_WORD, r3000_state->regs[rs] + (int16_t) imm);
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint16_t value = (int16_t) mem_read(mem_state, MEM_SIZE_WORD, r3000_state->regs[rs] + (int16_t) imm);
 
-    r3000_enqueue_load(r3000_state, mem_state, rt, value);
+        r3000_enqueue_load(r3000_state, mem_state, rt, value);
+    }
 }
 
 void opcode_lhu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint16_t value = (uint16_t) mem_read(mem_state, MEM_SIZE_WORD, r3000_state->regs[rs] + (int16_t) imm);
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint16_t value = (uint16_t) mem_read(mem_state, MEM_SIZE_WORD, r3000_state->regs[rs] + (int16_t) imm);
 
-    r3000_enqueue_load(r3000_state, mem_state, rt, value);
+        r3000_enqueue_load(r3000_state, mem_state, rt, value);
+    }
 }
 
 void opcode_lw(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t value = mem_read(mem_state, MEM_SIZE_DWORD, r3000_state->regs[rs] + (int16_t) imm);
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t value = mem_read(mem_state, MEM_SIZE_DWORD, r3000_state->regs[rs] + (int16_t) imm);
 
-    r3000_enqueue_load(r3000_state, mem_state, rt, value);
+        r3000_enqueue_load(r3000_state, mem_state, rt, value);
+    }
 }
 
 void opcode_sb(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t addr = r3000_state->regs[rs] + (int16_t) imm;
-    
-    if (r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC) {
-        log_debug("R3000", "Ignored store due to ISC bit in COP0 SR\n");
-        return;
-    }
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t addr = r3000_state->regs[rs] + (int16_t) imm;
 
-    mem_write(mem_state, MEM_SIZE_BYTE, addr, r3000_state->regs[rt] & 0xFF);
+        mem_write(mem_state, MEM_SIZE_BYTE, addr, r3000_state->regs[rt] & 0xFF);
+    }
 }
 
 void opcode_sh(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t addr = r3000_state->regs[rs] + (int16_t) imm;
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t addr = r3000_state->regs[rs] + (int16_t) imm;
 
-    if (r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC) {
-        log_debug("R3000", "Ignored store due to ISC bit in COP0 SR\n");
-        return;
+        mem_write(mem_state, MEM_SIZE_WORD, addr, r3000_state->regs[rt] & 0xFFFF);
     }
-
-    mem_write(mem_state, MEM_SIZE_WORD, addr, r3000_state->regs[rt] & 0xFFFF);
 }
 
 void opcode_sw(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t addr = r3000_state->regs[rs] + (int16_t) imm;
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t addr = r3000_state->regs[rs] + (int16_t) imm;
 
-    if (r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC) {
-        log_debug("R3000", "Ignored store due to ISC bit in COP0 SR\n");
-        return;
+        mem_write(mem_state, MEM_SIZE_DWORD, addr, r3000_state->regs[rt]);
     }
-
-    mem_write(mem_state, MEM_SIZE_DWORD, addr, r3000_state->regs[rt]);
 }
 
 /* ALU Instructions */
@@ -112,14 +113,14 @@ void opcode_subu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 
 void opcode_addi(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = r3000_state->regs[rs] + (int16_t) imm;
+    uint32_t result = r3000_state->regs[rs] + (uint32_t) (int16_t) imm;
 
     r3000_state->regs[rt] = result;
 }
 
 void opcode_addiu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = r3000_state->regs[rs] + (int16_t) imm;
+    uint32_t result = r3000_state->regs[rs] + (uint32_t) (int16_t) imm;
 
     r3000_state->regs[rt] = result;
 }
@@ -140,7 +141,7 @@ void opcode_sltu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 
 void opcode_slti(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = ((int32_t) r3000_state->regs[rs] < (int32_t) (int16_t) imm) ? 1 : 0;
+    uint32_t result = ((int32_t) r3000_state->regs[rs] < (int32_t) (uint32_t) (int16_t) imm) ? 1 : 0;
 
     r3000_state->regs[rt] = result;
 }
@@ -217,7 +218,7 @@ void opcode_srlv(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 
 void opcode_srav(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd)
 {
-    uint32_t result = (int32_t) r3000_state->regs[rt] >> (r3000_state->regs[rs] & 0x1F);
+    uint32_t result = ((int32_t) r3000_state->regs[rt]) >> (r3000_state->regs[rs] & 0x1F);
 
     r3000_state->regs[rd] = result;
 }
@@ -238,7 +239,7 @@ void opcode_srl(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, 
 
 void opcode_sra(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd, uint8_t shamt)
 {
-    uint32_t result = (int32_t) r3000_state->regs[rt] >> shamt;
+    uint32_t result = (uint32_t) ((int32_t) r3000_state->regs[rt] >> shamt);
 
     r3000_state->regs[rd] = result;
 }

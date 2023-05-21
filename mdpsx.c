@@ -26,7 +26,8 @@ int main()
     r3000_state.pc = 0xBFC00000;
 
     /* Init memory */
-    mem_state.ram = (uint8_t *) malloc(MEM_RAM_SIZE);
+    mem_state.ram = (uint8_t *) malloc(0x200000);
+    mem_state.scratchpad = (uint8_t *) malloc(0x400);
 
     /* Init breakpoints */
     r3000_add_breakpoint(&r3000_state, 0xA0000500, "SysInitKMem");
