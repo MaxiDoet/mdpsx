@@ -6,15 +6,11 @@
 #include "cpu/opcodes.h"
 #include "log.h"
 
-#define R3000_OPCODE_NIU   0
-#define R3000_OPCODE_RTYPE 1
-#define R3000_OPCODE_ITYPE 2
-#define R3000_OPCODE_JTYPE 3
-
 const char *r3000_primary_opcode_names[] = {
     "", "BcondZ", "J", "JAL", "BEQ", "BNE", "BLEZ", "BGTZ",
     "ADDI", "ADDIU", "SLTI", "SLTIU", "ANDI", "ORI", "XORI", "LUI",
-    "COP0", "COP1", "COP2", "COP3", "", "", "", "", "", "", "", "", "", "", "", "",
+    "COP0", "COP1", "COP2", "COP3", "", "", "", "", 
+    "", "", "", "", "", "", "", "",
     "LB", "LH", "LWL", "LW", "LBU", "LHU", "LWR", "",
     "SB", "SH", "SWL", "SW", "", "", "SWR", "",
     "LWC0", "LWC1", "LWC2", "LWC3", "", "", "", "",
@@ -32,20 +28,11 @@ const char *r3000_secondary_opcode_names[] = {
     "", "", "", "", "", "", "", ""
 };
 
-/*
-const char *r3000_primary_opcode_types[] = {
-    R3000_OPCODE_NIU, R3000_OPCODE_ITYPE, R3000_OPCODE_JTYPE, R3000_OPCODE_JTYPE, R3000_OPCODE_ITYPE, R3000_OPCODE_ITYPE, R3000_OPCODE_ITYPE, R3000_OPCODE_ITYPE,
-    R3000_OPCODE_RTYPE, R3000_OPCODE_RTYPE, R3000_OPCODE_RTYPE, R3000_OPCODE_RTYPE, R3000_OPCODE_RTYPE, R3000_OPCODE_RTYPE, R3000_OPCODE_RTYPE, R3000_OPCODE_RTYPE,
-    R3000_OPCODE_JTYPE, R3000_OPCODE_JTYPE, R3000_OPCODE_JTYPE, R3000_OPCODE_JTYPE, R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU,
-    R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU, R3000_OPCODE_NIU,
-};
-*/
-
 void r3000_enqueue_load(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rt, uint32_t value)
 {
-    r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_ARMED;
+    //r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_ARMED;
 
-    r3000_state->load_delay_register = rt;
+    r3000_state->load_delay_reg = rt;
     r3000_state->load_delay_value = value;
 }
 
@@ -65,18 +52,6 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
 {
     if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_ARMED) {
         r3000_state->branch_delay_slot_state = DELAY_SLOT_STATE_DELAY_CYCLE;
-    } else if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_DONE) {
-        r3000_state->pc = r3000_state->branch_addr;
-
-        r3000_state->branch_delay_slot_state = 0;
-    }
-
-    if (r3000_state->load_delay_slot_state == DELAY_SLOT_STATE_ARMED) {
-        r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_DELAY_CYCLE;
-    } else if (r3000_state->load_delay_slot_state == DELAY_SLOT_STATE_DONE) {
-        r3000_state->regs[r3000_state->load_delay_register] = r3000_state->load_delay_value;
-        
-        r3000_state->load_delay_slot_state = 0;
     }
 
     uint32_t instruction = mem_read(mem_state, MEM_SIZE_DWORD, r3000_state->pc);
@@ -88,8 +63,6 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         }
     }
     #endif
-
-    r3000_state->pc += 4;
 
     uint8_t opcode = (instruction & 0x0FC000000) >> 26;
     uint8_t funct = instruction & 0x0000003F;
@@ -108,15 +81,13 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
     uint32_t target_address = (instruction & 0x03FFFFFF);
 
     #ifdef LOG_DEBUG_R3000
-    log_debug("R3000", "pc: %08x | %s (%08x) | rs: %s rt: %s rd: %s imm: %x addr: %x | at: %x v0: %x v1: %x a0: %x a1: %x a2: %x a3: %x t0: %x t1: %x t2: %x t3: %x t4: %x t5: %x t6: %x t7: %x sp: %x ra: %x\n", r3000_state->pc - 4, opcode ? r3000_primary_opcode_names[opcode] : r3000_secondary_opcode_names[funct], instruction, r3000_register_names[rs], r3000_register_names[rt], r3000_register_names[rd], imm, target_address,
+    log_debug("R3000", "pc: %08x | %s (%08x) | rs: %s rt: %s rd: %s imm: %x addr: %x | at: %x v0: %x v1: %x a0: %x a1: %x a2: %x a3: %x t0: %x t1: %x t2: %x t3: %x t4: %x t5: %x t6: %x t7: %x sp: %x ra: %x s0: %x s1: %x s2: %x s3: %x s4: %x s5: %x s6: %x s7: %x\n", r3000_state->pc, opcode ? r3000_primary_opcode_names[opcode] : r3000_secondary_opcode_names[funct], instruction, r3000_register_names[rs], r3000_register_names[rt], r3000_register_names[rd], imm, target_address,
         r3000_state->regs[R3000_REG_AT], r3000_state->regs[R3000_REG_V0], r3000_state->regs[R3000_REG_V1], r3000_state->regs[R3000_REG_A0], r3000_state->regs[R3000_REG_A1], r3000_state->regs[R3000_REG_A2], r3000_state->regs[R3000_REG_A3], r3000_state->regs[R3000_REG_T0],
         r3000_state->regs[R3000_REG_T1], r3000_state->regs[R3000_REG_T2], r3000_state->regs[R3000_REG_T3], r3000_state->regs[R3000_REG_T4], r3000_state->regs[R3000_REG_T5], r3000_state->regs[R3000_REG_T6], r3000_state->regs[R3000_REG_T7], r3000_state->regs[R3000_REG_SP],
-        r3000_state->regs[R3000_REG_RA]
+        r3000_state->regs[R3000_REG_RA], r3000_state->regs[R3000_REG_S0], r3000_state->regs[R3000_REG_S1], r3000_state->regs[R3000_REG_S2], r3000_state->regs[R3000_REG_S3], r3000_state->regs[R3000_REG_S4], r3000_state->regs[R3000_REG_S5], r3000_state->regs[R3000_REG_S6],
+        r3000_state->regs[R3000_REG_S7]
     );
     #endif
-
-    /* R0 needs to be zero */
-    r3000_state->regs[0] = 0;
 
     /* SPECIAL */
     if (!opcode) {
@@ -179,11 +150,25 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         }
     }
 
-    if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_DELAY_CYCLE) {
-        r3000_state->branch_delay_slot_state = DELAY_SLOT_STATE_DONE;
+    if (r3000_state->load_delay_reg != r3000_state->load_reg) {
+        r3000_state->regs[r3000_state->load_reg] = r3000_state->load_value;
     }
 
-    if (r3000_state->load_delay_slot_state == DELAY_SLOT_STATE_DELAY_CYCLE) {
-        r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_DONE;
+    r3000_state->load_reg = r3000_state->load_delay_reg;
+    r3000_state->load_value = r3000_state->load_delay_value;
+
+    r3000_state->load_delay_reg = 0;
+
+    if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_DELAY_CYCLE) {
+        r3000_state->pc_next = r3000_state->branch_addr;
+
+        r3000_state->branch_delay_slot_state = 0;
+    } else {
+        r3000_state->pc_next += 4;
     }
+
+    r3000_state->pc = r3000_state->pc_next;
+
+    /* R0 needs to be zero */
+    r3000_state->regs[0] = 0;
 }

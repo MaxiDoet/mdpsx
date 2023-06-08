@@ -108,12 +108,17 @@ typedef struct r3000_state_t {
     uint32_t hi, lo;
 
     uint32_t pc;
+    uint32_t pc_next;
 
     uint8_t branch_delay_slot_state;
     uint32_t branch_addr;
 
     uint8_t load_delay_slot_state;
-    uint8_t load_delay_register;
+
+    uint8_t load_reg;
+    uint32_t load_value;
+
+    uint8_t load_delay_reg;
     uint32_t load_delay_value;
 
     uint32_t i_stat;
@@ -127,10 +132,10 @@ typedef struct r3000_state_t {
     #endif
 } r3000_state_t; 
 
-#endif
-
 void r3000_enqueue_load(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rt, uint32_t value);
 void r3000_branch(r3000_state_t *r3000_state, uint32_t addr);
 void r3000_add_breakpoint(r3000_state_t *r3000_state, uint32_t pc, char *name);
 void r3000_init(r3000_state_t *state);
 void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state);
+
+#endif

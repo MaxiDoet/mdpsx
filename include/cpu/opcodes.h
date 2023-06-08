@@ -113,14 +113,14 @@ void opcode_subu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 
 void opcode_addi(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = r3000_state->regs[rs] + (uint32_t) (int16_t) imm;
+    uint32_t result = r3000_state->regs[rs] + (int16_t) imm;
 
     r3000_state->regs[rt] = result;
 }
 
 void opcode_addiu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = r3000_state->regs[rs] + (uint32_t) (int16_t) imm;
+    uint32_t result = r3000_state->regs[rs] + (int16_t) imm;
 
     r3000_state->regs[rt] = result;
 }
@@ -141,7 +141,7 @@ void opcode_sltu(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 
 void opcode_slti(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    uint32_t result = ((int32_t) r3000_state->regs[rs] < (int32_t) (uint32_t) (int16_t) imm) ? 1 : 0;
+    uint32_t result = ((int32_t) r3000_state->regs[rs] < (int32_t) (int16_t) imm) ? 1 : 0;
 
     r3000_state->regs[rt] = result;
 }
@@ -204,42 +204,42 @@ void opcode_xori(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs,
 
 void opcode_sllv(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd)
 {
-    uint32_t result = r3000_state->regs[rt] << (r3000_state->regs[rs] & 0x1F);
+    uint32_t result = r3000_state->regs[rt] << (int32_t) (r3000_state->regs[rs] & 0x1F);
 
     r3000_state->regs[rd] = result;
 }
 
 void opcode_srlv(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd)
 {
-    uint32_t result = r3000_state->regs[rt] >> (r3000_state->regs[rs] & 0x1F);
+    uint32_t result = r3000_state->regs[rt] >> (int32_t) (r3000_state->regs[rs] & 0x1F);
 
     r3000_state->regs[rd] = result;
 }
 
 void opcode_srav(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd)
 {
-    uint32_t result = ((int32_t) r3000_state->regs[rt]) >> (r3000_state->regs[rs] & 0x1F);
+    uint32_t result = ((int32_t) r3000_state->regs[rt]) >> (int32_t) (r3000_state->regs[rs] & 0x1F);
 
     r3000_state->regs[rd] = result;
 }
 
 void opcode_sll(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd, uint8_t shamt)
 {
-    uint32_t result = r3000_state->regs[rt] << shamt;
+    uint32_t result = r3000_state->regs[rt] << (int32_t) shamt;
 
     r3000_state->regs[rd] = result;
 }
 
 void opcode_srl(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd, uint8_t shamt)
 {
-    uint32_t result = r3000_state->regs[rt] >> shamt;
+    uint32_t result = r3000_state->regs[rt] >> (int32_t) shamt;
 
     r3000_state->regs[rd] = result;
 }
 
 void opcode_sra(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint8_t rd, uint8_t shamt)
 {
-    uint32_t result = (uint32_t) ((int32_t) r3000_state->regs[rt] >> shamt);
+    uint32_t result = (uint32_t) ((int32_t) r3000_state->regs[rt] >> (int32_t) shamt);
 
     r3000_state->regs[rd] = result;
 }
@@ -310,86 +310,61 @@ void opcode_jal(r3000_state_t *r3000_state, mem_state_t *mem_state, uint32_t tar
 {
     r3000_branch(r3000_state, (r3000_state->pc & 0xF0000000) | (target_address << 2));
 
-    r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 4;
+    r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 8;
 }
 
 void opcode_jr(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs)
 {
-   r3000_branch(r3000_state, r3000_state->regs[rs]);
+    r3000_branch(r3000_state, r3000_state->regs[rs]);
 }
 
 void opcode_jalr(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rd)
 {
     r3000_branch(r3000_state, r3000_state->regs[rs]);
 
-    r3000_state->regs[rd] = r3000_state->pc + 4;
+    r3000_state->regs[rd] = r3000_state->pc + 8;
 }
 
 void opcode_beq(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
     if (r3000_state->regs[rs] == r3000_state->regs[rt]) {
-        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bne(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
     if (r3000_state->regs[rs] != r3000_state->regs[rt]) {
-        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bcondz(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
-    /*
-    bool branch = false;
-    bool link = false;
-
-    if (rt == 0) {
-        branch = ((int32_t) r3000_state->regs[rs] < 0);
-    } else if (rt == 1) {
-        branch = ((int32_t) r3000_state->regs[rs] >= 0);
-    } else if (rt == 16) {
-        branch = ((int32_t) r3000_state->regs[rs] < 0);
-        link = true;
-    } else if (rt == 17) {
-        branch = ((int32_t) r3000_state->regs[rs] >= 0);
-        link = true;
-    }
-
-    if (branch) {
-        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
-    }
-
-    if (link) {
-        r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 4;
-    }
-    */
-
     uint8_t opcode = rt;
     bool should_link = ((opcode & 0x1E) == 0x10);
     bool should_branch = ((int32_t)(r3000_state->regs[rs] ^ (opcode << 31)) < 0);
 
     if (should_link) {
-        r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 4;
+        r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 8;
     }
 
     if (should_branch) {
-        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bgtz(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint16_t imm)
 {
     if ((int32_t) r3000_state->regs[rs] > 0) {
-        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
     }
 }
 
 void opcode_blez(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rs, uint16_t imm)
 {
     if ((int32_t) r3000_state->regs[rs] <= 0) {
-        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
     }
 }
 
@@ -410,7 +385,6 @@ void opcode_mtc0(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rt,
     log_debug("COP0", "MTC | %s -> %s | %08x\n", r3000_register_names[rt], cop0_register_names[rd], r3000_state->regs[rt]);
     #endif
 
-    uint8_t reg = rd;
     uint32_t value = r3000_state->regs[rt];
 
     switch(rd) {

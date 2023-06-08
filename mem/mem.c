@@ -23,13 +23,13 @@ uint32_t mem_read(mem_state_t *state, uint8_t size, uint32_t addr)
 
     uint32_t phy_addr = addr & mem_segment_map[addr >> 29];
 
-    if (phy_addr >= 0x00000000 && phy_addr <= 0x007FFFFF) {
+    if (phy_addr >= 0x00000000 && phy_addr <= 0x001FFFFF) {
         if (size == MEM_SIZE_BYTE) {
-            result = *((uint8_t *) &state->ram[phy_addr]);
+            result = *((uint8_t *) &state->ram[phy_addr & 0x1FFFFF]);
         } else if (size == MEM_SIZE_WORD) {
-            result = *((uint16_t *) &state->ram[phy_addr]);
+            result = *((uint16_t *) &state->ram[phy_addr & 0x1FFFFF]);
         } else {
-            result = *((uint32_t *) &state->ram[phy_addr]);
+            result = *((uint32_t *) &state->ram[phy_addr & 0x1FFFFF]);
         }
     } else if (phy_addr >= 0x1F800000 && phy_addr <= 0x1F8003FF) {
         if (size == MEM_SIZE_BYTE) {
@@ -38,21 +38,19 @@ uint32_t mem_read(mem_state_t *state, uint8_t size, uint32_t addr)
             result = *((uint16_t *) &state->scratchpad[phy_addr & 0x3FF]);
         } else {
             result = *((uint32_t *) &state->scratchpad[phy_addr & 0x3FF]);
-        } 
+        }
     } else if (phy_addr == 0x1F801070) {
         result = state->i_stat;
     } else if (phy_addr == 0x1F801074) {
         result = state->i_mask;
     } else if (phy_addr >= 0x1FC00000 && phy_addr <= 0x1FC7FFFF) {
-        result = *((uint32_t *) &state->bios[phy_addr & 0x7FFFF]);
-    } else {
-        log_debug("MEM", "read addr: %x\n", addr);
-    }
-
-    if (size == MEM_SIZE_BYTE) {
-        result &= 0xFF;
-    } else if (size == MEM_SIZE_WORD) {
-        result &= 0xFFFF;
+        if (size == MEM_SIZE_BYTE) {
+            result = *((uint8_t *) &state->bios[phy_addr & 0x7FFFF]);
+        } else if (size == MEM_SIZE_WORD) {
+            result = *((uint16_t *) &state->bios[phy_addr & 0x7FFFF]);
+        } else {
+            result = *((uint32_t *) &state->bios[phy_addr & 0x7FFFF]);
+        }
     }
 
     #ifdef LOG_DEBUG_MEM_READ
@@ -66,27 +64,21 @@ void mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t value)
 {
     uint32_t phy_addr = addr & mem_segment_map[addr >> 29];
 
-    if (size == MEM_SIZE_BYTE) {
-        value &= 0xFF;
-    } else if (size == MEM_SIZE_WORD) {
-        value &= 0xFFFF;
-    }
-
-    if (phy_addr >= 0x00000000 && phy_addr <= 0x007FFFFF) {
+    if (phy_addr >= 0x00000000 && phy_addr <= 0x001FFFFF) {
         if (size == MEM_SIZE_BYTE) {
-            *((uint8_t *) &state->ram[phy_addr]) = value;
+            *((uint8_t *) &state->ram[phy_addr & 0x1FFFFF]) = value;
         } else if (size == MEM_SIZE_WORD) {
-            *((uint16_t *) &state->ram[phy_addr]) = value;
+            *((uint16_t *) &state->ram[phy_addr & 0x1FFFFF]) = value;
         } else {
-            *((uint32_t *) &state->ram[phy_addr]) = value;
+            *((uint32_t *) &state->ram[phy_addr & 0x1FFFFF]) = value;
         }
-    } else if (phy_addr >= 0x00000000 && phy_addr <= 0x007FFFFF) {
+    } else if (phy_addr >= 0x1F800000 && phy_addr <= 0x1F8003FF) {
         if (size == MEM_SIZE_BYTE) {
-            *((uint8_t *) &state->scratchpad[phy_addr]) = value;
+            *((uint8_t *) &state->scratchpad[phy_addr & 0x400]) = value;
         } else if (size == MEM_SIZE_WORD) {
-            *((uint16_t *) &state->scratchpad[phy_addr]) = value;
+            *((uint16_t *) &state->scratchpad[phy_addr & 0x400]) = value;
         } else {
-            *((uint32_t *) &state->scratchpad[phy_addr]) = value;
+            *((uint32_t *) &state->scratchpad[phy_addr & 0x400]) = value;
         }
     } else if (phy_addr == 0x1F801070) {
         #ifdef LOG_DEBUG_MEM_WRITE_IO
@@ -120,8 +112,10 @@ void mem_write(mem_state_t *state, uint8_t size, uint32_t addr, uint32_t value)
         #ifdef LOG_DEBUG_MEM_WRITE_IO
         log_debug("MEM", "POST %x\n", value);
         #endif
-    } else {
-        log_debug("MEM", "write addr: %x\n", addr);
+    } else if (phy_addr == 0xFFFE0130) {
+        #ifdef LOG_DEBUG_MEM_WRITE_IO
+        log_debug("MEM", "%x -> Cache Control\n", value);
+        #endif
     }
 
     #ifdef LOG_DEBUG_MEM_WRITE
