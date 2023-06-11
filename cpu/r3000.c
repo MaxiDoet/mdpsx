@@ -28,7 +28,13 @@ const char *r3000_secondary_opcode_names[] = {
     "", "", "", "", "", "", "", ""
 };
 
-void r3000_enqueue_load(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rt, uint32_t value)
+const char *r3000_exception_cause_names[] = {
+    "Interrupt", "", "", "",
+    "Address error load/fetch", "Address error store", "Bus error on instruction fetch", "Bus error on load/store",
+    "Syscall"
+};
+
+void r3000_enqueue_load(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rt, uint32_t value)
 {
     //r3000_state->load_delay_slot_state = DELAY_SLOT_STATE_ARMED;
 
@@ -42,19 +48,42 @@ void r3000_branch(r3000_state_t *r3000_state, uint32_t addr)
     r3000_state->branch_addr = addr;
 }
 
+void r3000_exception(r3000_state_t *r3000_state, uint8_t cause) {
+    // Save current pc
+    r3000_state->cop0_state.regs[COP0_REG_EPC] = r3000_state->pc;
+
+    // Check if we're in a branch delay slot
+    if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_DELAY_CYCLE) {
+        r3000_state->cop0_state.regs[COP0_REG_EPC] -= 4;
+        r3000_state->cop0_state.regs[COP0_REG_CAUSE] |= (1 << 31);
+    }
+
+    r3000_state->cop0_state.regs[COP0_REG_CAUSE] = cause << 2;
+
+    // Disable interrupts
+    r3000_state->cop0_state.regs[COP0_REG_SR] &= ~COP0_SR_IEC;
+
+    r3000_state->pc_next = (r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_BEV) ? 0xBFC00180 : 0x80000080;
+
+    #ifdef LOG_DEBUG_R3000_EXCEPTIONS
+    log_debug("R3000", "Exception | Cause: %s EPC: %08x\n", r3000_exception_cause_names[cause], r3000_state->cop0_state.regs[COP0_REG_EPC]);
+    #endif
+}
+
 void r3000_add_breakpoint(r3000_state_t *r3000_state, uint32_t pc, char *name)
 {
     r3000_state->breakpoints[r3000_state->breakpoint_count].pc = pc;
     r3000_state->breakpoints[r3000_state->breakpoint_count++].name = name;
 }
 
-void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
+void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
 {
     if (r3000_state->branch_delay_slot_state == DELAY_SLOT_STATE_ARMED) {
         r3000_state->branch_delay_slot_state = DELAY_SLOT_STATE_DELAY_CYCLE;
     }
 
-    uint32_t instruction = mem_read(mem_state, MEM_SIZE_DWORD, r3000_state->pc);
+    uint32_t instruction = bus_read(bus_state, BUS_SIZE_DWORD, r3000_state->pc);
+    r3000_state->pc_next += 4;
 
     #ifdef R3000_BREAKPOINTS
     for (uint8_t i=0; i < r3000_state->breakpoint_count; i++) {
@@ -92,60 +121,61 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
     /* SPECIAL */
     if (!opcode) {
         switch(funct) {
-            case 0x00: opcode_sll(r3000_state, mem_state, rs, rt, rd, shamt); break;
-            case 0x02: opcode_srl(r3000_state, mem_state, rs, rt, rd, shamt); break;
-            case 0x03: opcode_sra(r3000_state, mem_state, rs, rt, rd, shamt); break;
-            case 0x04: opcode_sllv(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x06: opcode_srlv(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x07: opcode_srav(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x08: opcode_jr(r3000_state, mem_state, rs); break;
-            case 0x09: opcode_jalr(r3000_state, mem_state, rs, rd); break;
-            case 0x10: opcode_mfhi(r3000_state, mem_state, rd); break;
-            case 0x11: opcode_mthi(r3000_state, mem_state, rs); break;
-            case 0x12: opcode_mflo(r3000_state, mem_state, rd); break;
-            case 0x13: opcode_mtlo(r3000_state, mem_state, rs); break;
-            case 0x18: opcode_mult(r3000_state, mem_state, rs, rt); break;
-            case 0x19: opcode_multu(r3000_state, mem_state, rs, rt); break;
-            case 0x1A: opcode_div(r3000_state, mem_state, rs, rt); break;
-            case 0x1B: opcode_divu(r3000_state, mem_state, rs, rt); break;
-            case 0x20: opcode_add(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x21: opcode_addu(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x22: opcode_sub(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x23: opcode_subu(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x24: opcode_and(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x25: opcode_or(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x26: opcode_xor(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x27: opcode_nor(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x2A: opcode_slt(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x2B: opcode_sltu(r3000_state, mem_state, rs, rt, rd); break;
+            case 0x00: opcode_sll(r3000_state, bus_state, rs, rt, rd, shamt); break;
+            case 0x02: opcode_srl(r3000_state, bus_state, rs, rt, rd, shamt); break;
+            case 0x03: opcode_sra(r3000_state, bus_state, rs, rt, rd, shamt); break;
+            case 0x04: opcode_sllv(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x06: opcode_srlv(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x07: opcode_srav(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x08: opcode_jr(r3000_state, bus_state, rs); break;
+            case 0x09: opcode_jalr(r3000_state, bus_state, rs, rd); break;
+            case 0x0C: opcode_syscall(r3000_state, bus_state); break;
+            case 0x10: opcode_mfhi(r3000_state, bus_state, rd); break;
+            case 0x11: opcode_mthi(r3000_state, bus_state, rs); break;
+            case 0x12: opcode_mflo(r3000_state, bus_state, rd); break;
+            case 0x13: opcode_mtlo(r3000_state, bus_state, rs); break;
+            case 0x18: opcode_mult(r3000_state, bus_state, rs, rt); break;
+            case 0x19: opcode_multu(r3000_state, bus_state, rs, rt); break;
+            case 0x1A: opcode_div(r3000_state, bus_state, rs, rt); break;
+            case 0x1B: opcode_divu(r3000_state, bus_state, rs, rt); break;
+            case 0x20: opcode_add(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x21: opcode_addu(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x22: opcode_sub(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x23: opcode_subu(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x24: opcode_and(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x25: opcode_or(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x26: opcode_xor(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x27: opcode_nor(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x2A: opcode_slt(r3000_state, bus_state, rs, rt, rd); break;
+            case 0x2B: opcode_sltu(r3000_state, bus_state, rs, rt, rd); break;
             default: exit(0); break;
         }
     } else {
         switch(opcode) {
-            case 0x01: opcode_bcondz(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x02: opcode_j(r3000_state, mem_state, target_address); break;
-            case 0x03: opcode_jal(r3000_state, mem_state, target_address); break;
-            case 0x04: opcode_beq(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x05: opcode_bne(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x06: opcode_blez(r3000_state, mem_state, rs, imm); break;
-            case 0x07: opcode_bgtz(r3000_state, mem_state, rs, imm); break;
-            case 0x08: opcode_addi(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x09: opcode_addiu(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x0A: opcode_slti(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x0B: opcode_sltiu(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x0C: opcode_andi(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x0D: opcode_ori(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x0E: opcode_xori(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x0F: opcode_lui(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x10: opcode_cop0(r3000_state, mem_state, rs, rt, rd); break;
-            case 0x20: opcode_lb(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x21: opcode_lh(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x23: opcode_lw(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x24: opcode_lbu(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x25: opcode_lhu(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x28: opcode_sb(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x29: opcode_sh(r3000_state, mem_state, rs, rt, imm); break;
-            case 0x2B: opcode_sw(r3000_state, mem_state, rs, rt, imm); break;
+            case 0x01: opcode_bcondz(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x02: opcode_j(r3000_state, bus_state, target_address); break;
+            case 0x03: opcode_jal(r3000_state, bus_state, target_address); break;
+            case 0x04: opcode_beq(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x05: opcode_bne(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x06: opcode_blez(r3000_state, bus_state, rs, imm); break;
+            case 0x07: opcode_bgtz(r3000_state, bus_state, rs, imm); break;
+            case 0x08: opcode_addi(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x09: opcode_addiu(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x0A: opcode_slti(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x0B: opcode_sltiu(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x0C: opcode_andi(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x0D: opcode_ori(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x0E: opcode_xori(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x0F: opcode_lui(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x10: opcode_cop0(r3000_state, bus_state, rs, rt, rd, imm); break;
+            case 0x20: opcode_lb(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x21: opcode_lh(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x23: opcode_lw(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x24: opcode_lbu(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x25: opcode_lhu(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x28: opcode_sb(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x29: opcode_sh(r3000_state, bus_state, rs, rt, imm); break;
+            case 0x2B: opcode_sw(r3000_state, bus_state, rs, rt, imm); break;
             default: exit(0); break;
         }
     }
@@ -163,8 +193,6 @@ void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state)
         r3000_state->pc_next = r3000_state->branch_addr;
 
         r3000_state->branch_delay_slot_state = 0;
-    } else {
-        r3000_state->pc_next += 4;
     }
 
     r3000_state->pc = r3000_state->pc_next;

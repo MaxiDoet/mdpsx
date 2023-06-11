@@ -2,7 +2,7 @@
 #define _r3000_h
 
 #include <stdbool.h>
-#include "mem/mem.h"
+#include "bus/bus.h"
 
 #define R3000_BREAKPOINTS
 
@@ -50,7 +50,18 @@
 #define COP0_REG_EPC      14
 #define COP0_REG_PRID     15
 
+#define COP0_SR_IEC (1 << 0)
+#define COP0_SR_IEP (1 << 2)
+#define COP0_SR_IEO (1 << 4)
 #define COP0_SR_ISC (1 << 16)
+#define COP0_SR_BEV (1 << 22)
+
+#define COP0_CAUSE_INT      0x00
+#define COP0_CAUSE_ADEL     0x04
+#define COP0_CAUSE_ADES     0x05
+#define COP0_CAUSE_IBE      0x06
+#define COP0_CAUSE_DBE      0x07
+#define COP0_CAUSE_SYSCALL  0x08
 
 #define DELAY_SLOT_STATE_ARMED          1
 #define DELAY_SLOT_STATE_DELAY_CYCLE    2
@@ -132,10 +143,11 @@ typedef struct r3000_state_t {
     #endif
 } r3000_state_t; 
 
-void r3000_enqueue_load(r3000_state_t *r3000_state, mem_state_t *mem_state, uint8_t rt, uint32_t value);
+void r3000_enqueue_load(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rt, uint32_t value);
 void r3000_branch(r3000_state_t *r3000_state, uint32_t addr);
+void r3000_exception(r3000_state_t *r3000_state, uint8_t cause);
 void r3000_add_breakpoint(r3000_state_t *r3000_state, uint32_t pc, char *name);
 void r3000_init(r3000_state_t *state);
-void r3000_step(r3000_state_t *r3000_state, mem_state_t *mem_state);
+void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state);
 
 #endif

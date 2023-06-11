@@ -1,4 +1,4 @@
-objs := mdpsx.o log.o cpu/r3000.o mem/mem.o renderer.o glad.o
+objs := mdpsx.o log.o cpu/r3000.o bus/bus.o renderer.o glad.o
 
 CFLAGS := -Iinclude -lglfw -lGL -g3 -O0 # -Wall -Wextra
 
