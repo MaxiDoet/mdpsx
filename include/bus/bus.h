@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#include "gpu/gpu.h"
+#include "bus/dma.h"
+
 #define BUS_SIZE_BYTE   0
 #define BUS_SIZE_WORD   1
 #define BUS_SIZE_DWORD  2
@@ -14,6 +17,9 @@ typedef struct bus_state_t {
 
     uint32_t i_stat;
     uint32_t i_mask;
+
+    gpu_state_t gpu_state;
+    dma_state_t dma_state;
 } bus_state_t;
 
 uint32_t bus_read(bus_state_t *state, uint8_t size, uint32_t addr);

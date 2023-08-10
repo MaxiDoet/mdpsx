@@ -29,7 +29,7 @@ void log_debug(char *prefix, const char *format, ...)
 {
     va_list args;
     
-    fprintf(stdout, "\e[0;34m%s\e[0m ", prefix);
+    fprintf(stdout, "\e[0;94m%s\e[0m ", prefix);
 
     va_start(args, format);
     vfprintf(stdout, format, args);

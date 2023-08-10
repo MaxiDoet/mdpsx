@@ -81,6 +81,70 @@ void opcode_sw(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, u
     }
 }
 
+void opcode_lwl(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint16_t imm)
+{
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t value = bus_read(bus_state, BUS_SIZE_DWORD, (r3000_state->regs[rs] + (int16_t) imm) & ~0x3);
+
+        switch((r3000_state->regs[rs] + (int16_t) imm) & 0x3) {
+            case 0: value = (r3000_state->regs[rt] & 0x00FFFFFF) | value << 24; break;
+            case 1: value = (r3000_state->regs[rt] & 0x0000FFFF) | value << 16; break;
+            case 2: value = (r3000_state->regs[rt] & 0x000000FF) | value << 8; break;
+            case 3: value = r3000_state->regs[rt] | value;
+        }
+
+        r3000_enqueue_load(r3000_state, bus_state, rt, value);
+    }
+}
+
+void opcode_lwr(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint16_t imm)
+{
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t value = bus_read(bus_state, BUS_SIZE_DWORD, (r3000_state->regs[rs] + (int16_t) imm) & ~0x3);
+
+        switch((r3000_state->regs[rs] + (int16_t) imm) & 0x3) {
+            case 0: value = r3000_state->regs[rt] | value; break;
+            case 1: value = (r3000_state->regs[rt] & 0xFF000000) | value >> 8; break;
+            case 2: value = (r3000_state->regs[rt] & 0xFFFF0000) | value >> 16; break;
+            case 3: value = (r3000_state->regs[rt] & 0xFFFFFF00) | value >> 24;
+        }
+
+        r3000_enqueue_load(r3000_state, bus_state, rt, value);
+    }
+}
+
+void opcode_swl(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint16_t imm)
+{
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t value = bus_read(bus_state, BUS_SIZE_DWORD, (r3000_state->regs[rs] + (int16_t) imm) & ~0x3);
+
+        switch((r3000_state->regs[rs] + (int16_t) imm) & 0x3) {
+            case 0: value = (r3000_state->regs[rt] & 0x00FFFFFF) | value << 24; break;
+            case 1: value = (r3000_state->regs[rt] & 0x0000FFFF) | value << 16; break;
+            case 2: value = (r3000_state->regs[rt] & 0x000000FF) | value << 8; break;
+            case 3: value = r3000_state->regs[rt] | value;
+        }
+
+        bus_write(bus_state, BUS_SIZE_DWORD, (r3000_state->regs[rs] + (int16_t) imm) & ~0x3, value);
+    }
+}
+
+void opcode_swr(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint16_t imm)
+{
+    if (!(r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_ISC)) {
+        uint32_t value = bus_read(bus_state, BUS_SIZE_DWORD, (r3000_state->regs[rs] + (int16_t) imm) & ~0x3);
+
+        switch((r3000_state->regs[rs] + (int16_t) imm) & 0x3) {
+            case 0: value = r3000_state->regs[rt] | value; break;
+            case 1: value = (r3000_state->regs[rt] & 0xFF000000) | value >> 8; break;
+            case 2: value = (r3000_state->regs[rt] & 0xFFFF0000) | value >> 16; break;
+            case 3: value = (r3000_state->regs[rt] & 0xFFFFFF00) | value >> 24;
+        }
+
+        bus_write(bus_state, BUS_SIZE_DWORD, (r3000_state->regs[rs] + (int16_t) imm) & ~0x3, value);
+    }
+}
+
 /* ALU Instructions */
 
 void opcode_add(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint8_t rd)
@@ -310,7 +374,7 @@ void opcode_jal(r3000_state_t *r3000_state, bus_state_t *bus_state, uint32_t tar
 {
     r3000_branch(r3000_state, (r3000_state->pc & 0xF0000000) | (target_address << 2));
 
-    r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 8;
+    r3000_state->regs[R3000_REG_RA] = r3000_state->pc_next;
 }
 
 void opcode_jr(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs)
@@ -322,57 +386,57 @@ void opcode_jalr(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs,
 {
     r3000_branch(r3000_state, r3000_state->regs[rs]);
 
-    r3000_state->regs[rd] = r3000_state->pc + 8;
+    r3000_state->regs[rd] = r3000_state->pc_next;
 }
 
 void opcode_beq(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
     if (r3000_state->regs[rs] == r3000_state->regs[rt]) {
-        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bne(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint16_t imm)
 {
     if (r3000_state->regs[rs] != r3000_state->regs[rt]) {
-        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
-void opcode_bcondz(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint16_t imm)
+void opcode_bcondz(r3000_state_t *r3000_state, bus_state_t *bus_state, uint32_t instruction, uint8_t rs, uint16_t imm)
 {
-    uint8_t opcode = rt;
-    bool should_link = ((opcode & 0x1E) == 0x10);
-    bool should_branch = ((int32_t)(r3000_state->regs[rs] ^ (opcode << 31)) < 0);
+    bool is_bgez = (instruction >> 16) & 1;
+    bool is_link = (instruction >> 17) & 0xF == 8;
 
-    if (should_link) {
-        r3000_state->regs[R3000_REG_RA] = r3000_state->pc + 8;
+    int32_t v = r3000_state->regs[rs];
+    uint32_t test = (v < 0) ^ is_bgez;
+
+    if (is_link) {
+        r3000_state->regs[R3000_REG_RA] = r3000_state->pc_next;
     }
 
-    if (should_branch) {
-        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
+    if (test != 0) {
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_bgtz(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint16_t imm)
 {
     if ((int32_t) r3000_state->regs[rs] > 0) {
-        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_blez(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint16_t imm)
 {
     if ((int32_t) r3000_state->regs[rs] <= 0) {
-        r3000_branch(r3000_state, r3000_state->pc + 4 + ((int16_t) imm << 2));
+        r3000_branch(r3000_state, r3000_state->pc + ((int16_t) imm << 2));
     }
 }
 
 void opcode_syscall(r3000_state_t *r3000_state, bus_state_t *bus_state)
 {
     r3000_exception(r3000_state, COP0_CAUSE_SYSCALL);
-
-    printf("syscall\n");
 }
 
 /* Coprocessor instruction */
@@ -407,7 +471,7 @@ void opcode_mtc0(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rt,
 
 void opcode_rfe(r3000_state_t *r3000_state, bus_state_t *bus_state)
 {
-    printf("rfe\n");
+    
 }
 
 void opcode_cop0(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rs, uint8_t rt, uint8_t rd, uint16_t imm)
