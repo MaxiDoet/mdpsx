@@ -16,5 +16,6 @@ void renderer_render(renderer_t *renderer);
 void renderer_swap(renderer_t *renderer);
 
 void renderer_monochrome_opaque_quad(renderer_t *renderer, uint32_t *args);
+void renderer_gouraud_quad(renderer_t *renderer, uint32_t *args);
 
 #endif

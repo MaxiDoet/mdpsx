@@ -30,11 +30,11 @@ uint32_t gpu_read(gpu_state_t *gpu_state, uint32_t addr)
 
 void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
 {
-    #ifdef LOG_DEBUG_GPU_COMMANDS
-    log_debug("GPU", "GP0 %s (%08X) | ", (gpu_state->state == GPU_STATE_WAITING_FOR_CMD) ? "CMD" : "ARG", command);
-    #endif    
-
     if (gpu_state->state == GPU_STATE_WAITING_FOR_CMD){
+        #ifdef LOG_DEBUG_GPU_COMMANDS
+        log_debug("GPU", "GP0 CMD (%08X) | ", command);
+        #endif
+
         gpu_state->command_buf[0] = command;
 
         uint8_t type = (command >> 24) & 0xFF;
@@ -55,6 +55,15 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
                 printf("Monochrome Opaque Quad");
 
                 gpu_state->command_buf_left = 4;
+                gpu_state->state = GPU_STATE_WAITING_FOR_ARG;
+
+                break;
+
+            // Gouraud Quad
+            case 0x38:
+                printf("Gouraud Quad");
+
+                gpu_state->command_buf_left = 8;
                 gpu_state->state = GPU_STATE_WAITING_FOR_ARG;
 
                 break;
@@ -87,6 +96,10 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
                 break;
         }
     } else if (gpu_state->state == GPU_STATE_WAITING_FOR_ARG) {
+        #ifdef LOG_DEBUG_GPU_COMMANDS
+        log_debug("GPU", "GP0 ARG (%08X) | ", command);
+        #endif
+
         gpu_state->command_buf[++gpu_state->command_buf_index] = command;
 
         gpu_state->command_buf_left--;
@@ -102,6 +115,11 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
                     renderer_monochrome_opaque_quad(gpu_state->renderer, gpu_state->command_buf);
                     break;
 
+                // Gouraud Quad
+                case 0x38:
+                    renderer_gouraud_quad(gpu_state->renderer, gpu_state->command_buf);
+                    break;
+
                 // CPU->VRAM
                 case 0xA0:
                     // Now that we have all arguments we can calculate how much data arguments we need
@@ -109,12 +127,16 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
                     uint16_t height = gpu_state->command_buf[2] & 0xFFFF0000;
 
                     gpu_state->command_buf_left = width * height / 2;
-                    gpu_state->state = GPU_STATE_WAITING_FOR_VRAM_DATA;
+                    //gpu_state->state = GPU_STATE_WAITING_FOR_VRAM_DATA;
 
                     break;
             }
         }
     } else if (gpu_state->state == GPU_STATE_WAITING_FOR_VRAM_DATA) {
+        #ifdef LOG_DEBUG_GPU_COMMANDS
+        log_debug("GPU", "GP0 VRAM_DATA (%08X)\n");
+        #endif
+
         if (gpu_state->command_buf_left == 0) {
             // Done Loading
             printf("Done!!!!\n");
