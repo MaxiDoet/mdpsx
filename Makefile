@@ -1,6 +1,6 @@
-objs := mdpsx.o log.o cpu/r3000.o bus/bus.o gpu/gpu.o renderer.o
+objs := mdpsx.o log.o cpu/r3000.o bus/bus.o gpu/gpu.o renderer/renderer.o
 
-CFLAGS := -Iinclude -lglfw -lGL -lSDL2 -g3 -O0 # -Wall -Wextra
+CFLAGS := -Iinclude -lglfw -lGL -lSDL2 -lGLEW -lSDL2_image -g3 -O0 # -Wall -Wextra
 
 
 all: mdpsx

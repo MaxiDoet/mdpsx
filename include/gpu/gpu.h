@@ -1,7 +1,9 @@
 #ifndef _gpu_h
 #define _gpu_h
 
-#include "renderer.h"
+#include <stdbool.h>
+
+#include "renderer/renderer.h"
 
 #define GPU_COMMAND_BUFFER_SIZE     10
 
@@ -11,6 +13,13 @@
 
 typedef struct gpu_state_t {
     renderer_t *renderer;
+
+    uint16_t horizontal_resolution;
+    uint16_t vertical_resolution;
+    bool pal;
+    uint8_t depth_24bit;
+    bool display_enable;
+    uint8_t dma_direction;
 
     uint32_t state;
     uint32_t command_buf[10];

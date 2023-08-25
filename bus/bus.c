@@ -31,30 +31,65 @@ const char *dma_reg_names[] = {
     "MADR", "", "", "", "BCR", "", "", "", "CHCR"
 };
 
-void dma_transfer_all_at_once(dma_state_t *state, dma_channel_state_t *channel_state, bus_state_t *bus_state)
+void dma_set_irq(dma_state_t *state, dma_channel_state_t *channel_state, uint8_t channel_type)
 {
-    uint32_t entries = channel_state->bcr & 0xFFFF;
+    bool irq_enabled = state->dicr & (1 << (16 + channel_type));
+    
+    if (irq_enabled) {
+        // Set irq flag
+        state->dicr |= (1 << (24 + channel_type));
+    }
+}
+
+void dma_transfer_words(dma_state_t *state, dma_channel_state_t *channel_state, uint8_t channel_type, bus_state_t *bus_state)
+{
+    uint32_t words = 0;
+
+    uint8_t sync_mode = (channel_state->chcr >> 9) & 0x3;
+    if (sync_mode == 0) {
+        words = (channel_state->bcr & 0x0000FFFF);
+    } else if (sync_mode == 1) {
+        words = (channel_state->bcr & 0x0000FFFF) * ((channel_state->bcr >> 16) & 0x0000FFFF);
+    }
 
     #ifdef LOG_DEBUG_DMA
-    log_debug("DMA", "Transfering %d words from %08X\n", entries, channel_state->madr);
+    log_debug("DMA", "Transfering %d words | sync_mode: %d | madr: %08X\n", words, sync_mode, channel_state->madr);
     #endif
 
     uint32_t addr = channel_state->madr;
+    int8_t addr_step = (channel_state->chcr & DMA_CHANNEL_CHCR_ADDR_STEP) ? -4 : 4;
 
-    for (uint32_t i=0; i < entries; i++) {
+    for (uint32_t i=0; i < words; i++) {
         uint32_t value = 0;
 
-        if (i == (entries - 1)) {
-            value = 0xFFFFFF;
+        if (channel_state->chcr & DMA_CHANNEL_CHCR_DIRECTION) {
+            // From RAM
+            uint32_t word = bus_read(bus_state, BUS_SIZE_DWORD, addr);
+
+            switch(channel_type) {
+                case DMA_CHANNEL_GPU:
+                    gpu_send_gp0_command(&bus_state->gpu_state, word);
+                    break;
+            }
         } else {
-            value = (addr - 4) & 0xFFFFFF;
+            uint32_t value = 0;
+
+            // To RAM
+            switch(channel_type) {
+                case DMA_CHANNEL_OTC:
+                    if (i == (words - 1)) {
+                        value = 0xFFFFFF;
+                    } else {
+                        value = (addr - 4) & 0x1FFFFF;
+                    }
+
+                    break;
+            }
+
+            bus_write(bus_state, BUS_SIZE_DWORD, addr & 0x1FFFFC, value);
         }
-
-        //printf("addr: %08X | %08X\n", addr, value);
-
-        bus_write(bus_state, BUS_SIZE_DWORD, addr, value);
     
-        addr -= 4;
+        addr = (addr + addr_step);
     }
 }
 
@@ -64,51 +99,56 @@ void dma_transfer_linked_list(dma_state_t *state, dma_channel_state_t *channel_s
     log_debug("DMA", "Transfering linked list from %08X\n", channel_state->madr);
     #endif
 
-    uint32_t node_addr = channel_state->madr;
-    uint32_t node_header = bus_read(bus_state, BUS_SIZE_DWORD, node_addr);
-    uint32_t node_word_count = (node_header >> 24);
+    uint32_t addr = channel_state->madr & 0x1FFFFC;
 
     while(true) {
-        //printf("%08X | words: %d next_addr: %x\n", node_addr, node_word_count, node_header & 0x1FFFFC);
+        uint32_t node_header = bus_read(bus_state, BUS_SIZE_DWORD, addr);
+        uint32_t word_count = (node_header >> 24);
 
-        //printf("000EB918: %08X\n", bus_read(bus_state, BUS_SIZE_DWORD, 0x800EB918));
+        //printf("%08X | words: %d next_addr: %x\n", addr, word_count, node_header & 0x1FFFFC);
 
         // Read all words that belong to this node
-        for (uint32_t i=0; i < node_word_count; i++) {
-            uint32_t word = bus_read(bus_state, BUS_SIZE_DWORD, node_addr + 4 + i * 4);
+        while (word_count > 0) {
+            addr = (addr + 4) & 0x1FFFFC;
 
+            uint32_t word = bus_read(bus_state, BUS_SIZE_DWORD, addr);
             gpu_send_gp0_command(&bus_state->gpu_state, word);
+
+            word_count--;
         }
 
-        node_addr = (node_header & 0xFFFFFF);
+        if (node_header & (1 << 23)) {
+            #ifdef LOG_DEBUG_DMA
+            log_debug("DMA", "End of linked list\n");
+            #endif
 
-        if (node_addr & (1 << 23)) {
-            printf("End of linked list\n");
             break;
         }
 
-        node_header = bus_read(bus_state, BUS_SIZE_DWORD, node_addr & 0x1FFFFC);
-        node_word_count = (node_header >> 24);
+        addr = (node_header & 0x1FFFFC);
     }
 }
 
-void dma_transfer(dma_state_t *state, dma_channel_state_t *channel_state, bus_state_t *bus_state)
+void dma_transfer(dma_state_t *state, dma_channel_state_t *channel_state, uint8_t channel_type, bus_state_t *bus_state)
 {
     /* Calculate the amount of words we need to transfer */
     uint8_t sync_mode = (channel_state->chcr >> 9) & 0x3;
 
     switch(sync_mode) {
         case 0:
-            dma_transfer_all_at_once(state, channel_state, bus_state);
+            dma_transfer_words(state, channel_state, channel_type, bus_state);
             break;
 
         case 1:
+            dma_transfer_words(state, channel_state, channel_type, bus_state);
             break;
 
         case 2:
             dma_transfer_linked_list(state, channel_state, bus_state);
             break;
     }
+
+    dma_set_irq(state, channel_state, channel_type);
 
     channel_state->chcr &= ~DMA_CHANNEL_CHCR_START_BUSY;
     channel_state->chcr &= ~DMA_CHANNEL_CHCR_TRIGGER;
@@ -121,20 +161,20 @@ void dma_channel_write(dma_state_t *state, dma_channel_state_t *channel_state, u
     #endif
 
     switch(reg) {
-        case DMA_REG_MADR:
+        case DMA_CHANNEL_REG_MADR:
             channel_state->madr = value;
             break;
 
-        case DMA_REG_BCR:
+        case DMA_CHANNEL_REG_BCR:
             channel_state->bcr = value;
             break;
 
-        case DMA_REG_CHCR:
+        case DMA_CHANNEL_REG_CHCR:
             channel_state->chcr = value;
 
             // If start bit is set, start transfer
             if (value & DMA_CHANNEL_CHCR_START_BUSY) {
-                dma_transfer(state, channel_state, bus_state);
+                dma_transfer(state, channel_state, channel_type, bus_state);
             }
 
             break;
@@ -146,15 +186,15 @@ uint32_t dma_channel_read(dma_state_t *state, dma_channel_state_t *channel_state
     uint32_t result = 0;
 
     switch(reg) {
-        case DMA_REG_MADR:
+        case DMA_CHANNEL_REG_MADR:
             result = channel_state->madr;
             break;
 
-        case DMA_REG_BCR:
+        case DMA_CHANNEL_REG_BCR:
             result = channel_state->bcr;
             break;
 
-        case DMA_REG_CHCR:
+        case DMA_CHANNEL_REG_CHCR:
             result = channel_state->chcr;
             break;
     }
@@ -162,6 +202,8 @@ uint32_t dma_channel_read(dma_state_t *state, dma_channel_state_t *channel_state
     #ifdef LOG_DEBUG_DMA
     log_debug("DMA", "%08X <- %s %s\n", result, dma_channel_names[channel_type], dma_reg_names[reg]);
     #endif
+
+    return result;
 }
 
 void dma_write_dpcr(dma_state_t *dma_state, uint32_t value)
@@ -171,6 +213,15 @@ void dma_write_dpcr(dma_state_t *dma_state, uint32_t value)
     #endif
 
     dma_state->dpcr = value;
+}
+
+void dma_write_dicr(dma_state_t *dma_state, uint32_t value)
+{
+    #ifdef LOG_DEBUG_DMA
+    log_debug("DMA", "%08X -> DICR\n", value);
+    #endif
+
+    dma_state->dicr = value;
 }
 
 void dma_write(dma_state_t *dma_state, bus_state_t *bus_state, uint32_t addr, uint32_t value)
@@ -198,7 +249,11 @@ void dma_write(dma_state_t *dma_state, bus_state_t *bus_state, uint32_t addr, ui
         case 0xF0:
             if ((addr & 0xF) == 0) {
                 dma_write_dpcr(dma_state, value);
+            } else if ((addr & 0xF) == 4) {
+                dma_write_dicr(dma_state, value);
             }
+
+            break;
     }
 }
 
@@ -229,7 +284,19 @@ uint32_t dma_read(dma_state_t *dma_state, uint32_t addr)
         case 0xF0:
             if ((addr & 0xF) == 0) {
                 result = dma_state->dpcr;
+
+                #ifdef LOG_DEBUG_DMA
+                log_debug("DMA", "%08X <- DPCR\n", result);
+                #endif
+            } else if ((addr & 0xF) == 4) {
+                result = dma_state->dicr;
+
+                #ifdef LOG_DEBUG_DMA
+                log_debug("DMA", "%08X <- DICR\n", result);
+                #endif
             }
+
+            break;
     }
 
     return result;

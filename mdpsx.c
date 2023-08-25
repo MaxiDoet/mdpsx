@@ -6,10 +6,11 @@
 #include <pthread.h>
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 #include "cpu/r3000.h"
 #include "bus/bus.h"
-#include "renderer.h"
+#include "renderer/renderer.h"
 #include "log.h"
 
 bool running = true;
@@ -52,6 +53,8 @@ int main()
     bus_state.ram = (uint8_t *) malloc(2048 * 1024);
     bus_state.scratchpad = (uint8_t *) malloc(1024);
 
+    r3000_state.debug_enabled = &bus_state.debug_enabled;
+
     /* Init SDL */
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
         log_error("mdpsx", "Failed to init SDL");
@@ -65,6 +68,11 @@ int main()
         log_error("mdpsx", "Failed to init window");
         exit(0);
     }
+
+    /* Set window icon */
+    SDL_Surface *icon_surface = IMG_Load("./assets/icon.png");
+
+    SDL_SetWindowIcon(window, icon_surface);
 
     /* Create SDL render context*/
     SDL_Renderer *sdl_renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -83,18 +91,19 @@ int main()
     //pthread_create(&compute_thread_id, NULL, compute_thread, &compute_thread_args);
     //pthread_join(compute_thread_id, NULL);
 
+    SDL_Event event;
     while(running) {
-        SDL_Event event;
-
         while(SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 running = false;
             }
         }
 
-        r3000_step(&r3000_state, &bus_state);
+        for (uint32_t i=0; i < 10000; i++) {
+            r3000_step(&r3000_state, &bus_state);
+        }
 
         //renderer_render(&renderer);
-        //renderer_swap(&renderer);
+        renderer_swap(&renderer);
     }
 }

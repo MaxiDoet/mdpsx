@@ -2,6 +2,7 @@
 #define _bus_h
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "gpu/gpu.h"
 #include "bus/dma.h"
@@ -20,6 +21,8 @@ typedef struct bus_state_t {
 
     gpu_state_t gpu_state;
     dma_state_t dma_state;
+
+    bool debug_enabled;
 } bus_state_t;
 
 uint32_t bus_read(bus_state_t *state, uint8_t size, uint32_t addr);

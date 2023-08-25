@@ -129,15 +129,14 @@ typedef struct r3000_state_t {
 
     cop0_state_t cop0_state;
 
-    #ifdef R3000_BREAKPOINTS
-    r3000_breakpoint_t breakpoints[100];
-    uint8_t breakpoint_count;
-    #endif
+    bool *debug_enabled;
+    uint32_t cycles;
 } r3000_state_t; 
 
 void r3000_enqueue_load(r3000_state_t *r3000_state, bus_state_t *bus_state, uint8_t rt, uint32_t value);
 void r3000_branch(r3000_state_t *r3000_state, uint32_t addr);
 void r3000_exception(r3000_state_t *r3000_state, uint8_t cause);
+void r3000_rfe(r3000_state_t *r3000_state);
 void r3000_init(r3000_state_t *state);
 void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state);
 

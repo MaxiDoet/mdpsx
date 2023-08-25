@@ -52,7 +52,18 @@ void r3000_branch(r3000_state_t *r3000_state, uint32_t addr)
     r3000_state->branch_addr = addr;
 }
 
+int test = 0;
+
 void r3000_exception(r3000_state_t *r3000_state, uint8_t cause) {
+    // Save current mode
+    uint8_t mode = r3000_state->cop0_state.regs[COP0_REG_SR] & 0x3F;
+
+    r3000_state->cop0_state.regs[COP0_REG_SR] &= ~0x3F;
+    r3000_state->cop0_state.regs[COP0_REG_SR] |= (mode << 2) & 0x3F;
+
+    // Disable interrupts
+    r3000_state->cop0_state.regs[COP0_REG_SR] &= ~COP0_SR_IEC;
+
     // Save PC
     if (cause == COP0_CAUSE_INT) {
         r3000_state->cop0_state.regs[COP0_REG_EPC] = r3000_state->pc;
@@ -68,9 +79,6 @@ void r3000_exception(r3000_state_t *r3000_state, uint8_t cause) {
 
     r3000_state->cop0_state.regs[COP0_REG_CAUSE] = cause << 2;
 
-    // Disable interrupts
-    r3000_state->cop0_state.regs[COP0_REG_SR] &= ~COP0_SR_IEC;
-
     r3000_state->pc = (r3000_state->cop0_state.regs[COP0_REG_SR] & COP0_SR_BEV) ? 0xBFC00180 : 0x80000080;
     r3000_state->pc_next = r3000_state->pc + 4;
 
@@ -79,7 +87,18 @@ void r3000_exception(r3000_state_t *r3000_state, uint8_t cause) {
     #endif
 }
 
-bool debug = true;
+void r3000_rfe(r3000_state_t *r3000_state)
+{
+    #ifdef LOG_DEBUG_R3000_EXCEPTIONS
+    log_debug("R3000", "Return from exception\n");
+    #endif
+
+    // Restore old mode
+    uint8_t mode = r3000_state->cop0_state.regs[COP0_REG_SR] & 0x3F;
+    
+    r3000_state->cop0_state.regs[COP0_REG_SR] &= ~0x3F;
+    r3000_state->cop0_state.regs[COP0_REG_SR] |= (mode >> 2);
+}
 
 void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
 {
@@ -102,14 +121,24 @@ void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
     /* I-Type */
     uint16_t imm = (instruction & 0x0000FFFF);
 
-    /* J-Type */
-    uint32_t target_address = (instruction & 0x03FFFFFF);
+    /* J-Type */    
+    uint32_t imm_jump = (instruction & 0x03FFFFFF);
 
-    //if (r3000_state->pc_instruction == 0x80050B9C) debug = true;
+    /*
+    if (r3000_state->cycles == 50711080) {
+        *r3000_state->debug_enabled = true;
+
+        for (uint32_t i=0; i < 50; i++) {
+            printf("%08X ", bus_read(bus_state, BUS_SIZE_DWORD, 0x00138D3C + i * 4));
+        }
+
+        printf("\n");
+    }
+    */
 
     #ifdef LOG_DEBUG_R3000
-    if (debug) {
-    log_debug("R3000", "pc: %08x | %s (%08x) | rs: %s rt: %s rd: %s imm: %x addr: %x | at: %x v0: %x v1: %x a0: %x a1: %x a2: %x a3: %x t0: %x t1: %x t2: %x t3: %x t4: %x t5: %x t6: %x t7: %x sp: %x ra: %x s0: %x s1: %x s2: %x s3: %x s4: %x s5: %x s6: %x s7: %x\n", r3000_state->pc, opcode ? r3000_primary_opcode_names[opcode] : r3000_secondary_opcode_names[funct], instruction, r3000_register_names[rs], r3000_register_names[rt], r3000_register_names[rd], imm, target_address,
+    if (*r3000_state->debug_enabled) {
+    log_debug("R3000", "cycles: %d pc: %08x | %s (%08x) | rs: %s rt: %s rd: %s imm: %x addr: %x | at: %x v0: %x v1: %x a0: %x a1: %x a2: %x a3: %x t0: %x t1: %x t2: %x t3: %x t4: %x t5: %x t6: %x t7: %x sp: %x ra: %x s0: %x s1: %x s2: %x s3: %x s4: %x s5: %x s6: %x s7: %x\n", r3000_state->cycles, r3000_state->pc, opcode ? r3000_primary_opcode_names[opcode] : r3000_secondary_opcode_names[funct], instruction, r3000_register_names[rs], r3000_register_names[rt], r3000_register_names[rd], imm, imm_jump,
         r3000_state->regs[R3000_REG_AT], r3000_state->regs[R3000_REG_V0], r3000_state->regs[R3000_REG_V1], r3000_state->regs[R3000_REG_A0], r3000_state->regs[R3000_REG_A1], r3000_state->regs[R3000_REG_A2], r3000_state->regs[R3000_REG_A3], r3000_state->regs[R3000_REG_T0],
         r3000_state->regs[R3000_REG_T1], r3000_state->regs[R3000_REG_T2], r3000_state->regs[R3000_REG_T3], r3000_state->regs[R3000_REG_T4], r3000_state->regs[R3000_REG_T5], r3000_state->regs[R3000_REG_T6], r3000_state->regs[R3000_REG_T7], r3000_state->regs[R3000_REG_SP],
         r3000_state->regs[R3000_REG_RA], r3000_state->regs[R3000_REG_S0], r3000_state->regs[R3000_REG_S1], r3000_state->regs[R3000_REG_S2], r3000_state->regs[R3000_REG_S3], r3000_state->regs[R3000_REG_S4], r3000_state->regs[R3000_REG_S5], r3000_state->regs[R3000_REG_S6],
@@ -147,7 +176,7 @@ void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
 
     /* R0 needs to be zero */
     r3000_state->regs[0] = 0;
-
+    
     /* SPECIAL */
     if (!opcode) {
         switch(funct) {
@@ -183,8 +212,8 @@ void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
     } else {
         switch(opcode) {
             case 0x01: opcode_bcondz(r3000_state, bus_state, instruction, rs, imm); break;
-            case 0x02: opcode_j(r3000_state, bus_state, target_address); break;
-            case 0x03: opcode_jal(r3000_state, bus_state, target_address); break;
+            case 0x02: opcode_j(r3000_state, bus_state, imm_jump); break;
+            case 0x03: opcode_jal(r3000_state, bus_state, imm_jump); break;
             case 0x04: opcode_beq(r3000_state, bus_state, rs, rt, imm); break;
             case 0x05: opcode_bne(r3000_state, bus_state, rs, rt, imm); break;
             case 0x06: opcode_blez(r3000_state, bus_state, rs, imm); break;
@@ -234,4 +263,6 @@ void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
 
     /* R0 needs to be zero */
     r3000_state->regs[0] = 0;
+
+    r3000_state->cycles++;
 }
