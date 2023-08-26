@@ -228,6 +228,8 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
                 printf("Render");
                 #endif
                 
+                renderer_render(gpu_state->renderer);
+
                 break;
 
             // Masking Bit

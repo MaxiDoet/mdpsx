@@ -104,6 +104,6 @@ int main()
         }
 
         //renderer_render(&renderer);
-        renderer_swap(&renderer);
+        //renderer_swap(&renderer);
     }
 }

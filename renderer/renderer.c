@@ -5,10 +5,6 @@
 #include "renderer/renderer.h"
 #include "log.h"
 
-#include <GL/glew.h>
-#include <GL/gl.h>
-#include "GL/glu.h"
-
 #define SHADER_TYPE_VERTEX      0
 #define SHADER_TYPE_FRAGMENT    1
 
@@ -98,16 +94,26 @@ uint32_t renderer_create_program(char *vertex_path, char *fragment_path)
     return program;
 }
 
+void renderer_push_vertex(renderer_t *renderer, GLshort x, GLshort y, uint8_t r, uint8_t g, uint8_t b)
+{
+    renderer->vertex_buffer[renderer->vertex_buffer_index].x = x;
+    renderer->vertex_buffer[renderer->vertex_buffer_index].y = y;
+    renderer->vertex_buffer[renderer->vertex_buffer_index].r = r;
+    renderer->vertex_buffer[renderer->vertex_buffer_index].g = g;
+    renderer->vertex_buffer[renderer->vertex_buffer_index++].b = b;
+}
+
 void renderer_init(renderer_t *renderer, SDL_Window *window, SDL_Renderer *sdl_renderer, SDL_GLContext *gl_context)
 {
     renderer->window = window;
     renderer->sdl_renderer = sdl_renderer;
     renderer->gl_context = gl_context;
 
-    glewInit();
+    #ifdef LOG_DEBUG_RENDERER
+    log_debug("RENDERER", "OpenGL Version: %s | Vendor: %s\n", glGetString(GL_VERSION), glGetString(GL_VENDOR));
+    #endif
 
-    uint32_t program = renderer_create_program("renderer/vertex.glsl", "renderer/fragment.glsl");
-    glUseProgram(program);
+    glewInit();
 
     glViewport(0, 0, 800, 600);
     glMatrixMode(GL_PROJECTION);
@@ -115,17 +121,38 @@ void renderer_init(renderer_t *renderer, SDL_Window *window, SDL_Renderer *sdl_r
     glOrtho(0, 800, 0, 600, 0, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+
+    renderer->program = renderer_create_program("renderer/vertex.glsl", "renderer/fragment.glsl");
+    glUseProgram(renderer->program);
+
+    glGenBuffers(1, &renderer->vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(renderer->vertex_buffer), renderer->vertex_buffer, GL_STATIC_DRAW);
 }
 
 void renderer_render(renderer_t *renderer)
 {
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-}
+    glUseProgram(renderer->program);
 
-void renderer_swap(renderer_t *renderer)
-{
+    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(renderer->vertex_buffer), renderer->vertex_buffer, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+
+    // v_pos
+    glVertexAttribIPointer(0, 2, GL_SHORT, sizeof(vertex_t), (void*) 0);
+    
+    // v_col
+    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex_t), (void*) 4);
+
+    glDrawArrays(GL_TRIANGLES, 0, renderer->vertex_buffer_index);
+
+    glDisableVertexAttribArray(0);
+    glDisableVertexAttribArray(1);
+
     SDL_GL_SwapWindow(renderer->window);
+
+    renderer->vertex_buffer_index = 0;
 }
 
 void renderer_monochrome_opaque_quad(renderer_t *renderer, uint32_t *args)
@@ -142,27 +169,21 @@ void renderer_monochrome_opaque_quad(renderer_t *renderer, uint32_t *args)
     int16_t v3_x = (int16_t) (args[4] & 0xFFFF);
     int16_t v3_y = (int16_t) (args[4] >> 16) & 0xFFFF;
 
-    uint32_t first_color_r = args[0] & 0xFF;
-    uint32_t first_color_g = (args[0] >> 8) & 0xFF;
-    uint32_t first_color_b = (args[0] >> 16) & 0xFF;
+    uint8_t first_color_r = args[0] & 0xFF;
+    uint8_t first_color_g = (args[0] >> 8) & 0xFF;
+    uint8_t first_color_b = (args[0] >> 16) & 0xFF;
 
     #ifdef LOG_DEBUG_RENDERER
     log_debug("RENDERER", "Monochrome Opaque Quad | v0: %d, %d v1: %d, %d v2: %d, %d v3: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y, v3_x, v3_y);
     #endif
 
-    float vertices[] =
-    {
-        v3_x, v3_y, 0.0,
-        v2_x, v2_y, 0.0,
-        v0_x, v0_y, 0.0,
-        v1_x, v1_y, 0.0
-    };
+    renderer_push_vertex(renderer, v0_x, v0_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
 
-    glColor3ub(first_color_r, first_color_g, first_color_b);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 0, vertices);
-    glDrawArrays(GL_QUADS, 0, 4 );
-    glDisableClientState(GL_VERTEX_ARRAY);
+    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v3_x, v3_y, first_color_r, first_color_g, first_color_b);
 }
 
 void renderer_textured_blend_quad(renderer_t *renderer, uint32_t *args)
@@ -187,19 +208,13 @@ void renderer_textured_blend_quad(renderer_t *renderer, uint32_t *args)
     log_debug("RENDERER", "Textured Blend Quad | v0: %d, %d v1: %d, %d v2: %d, %d v3: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y, v3_x, v3_y);
     #endif
 
-    float vertices[] =
-    {
-        v3_x, v3_y, 0.0,
-        v2_x, v2_y, 0.0,
-        v0_x, v0_y, 0.0,
-        v1_x, v1_y, 0.0
-    };
+    renderer_push_vertex(renderer, v0_x, v0_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
 
-    glColor3ub(first_color_r, first_color_g, first_color_b);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 0, vertices);
-    glDrawArrays(GL_QUADS, 0, 4 );
-    glDisableClientState(GL_VERTEX_ARRAY);
+    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_vertex(renderer, v3_x, v3_y, first_color_r, first_color_g, first_color_b);
 }
 
 void renderer_gouraud_triangle(renderer_t *renderer, uint32_t *args)
@@ -213,26 +228,25 @@ void renderer_gouraud_triangle(renderer_t *renderer, uint32_t *args)
     int16_t v2_x = (int16_t) (args[5] & 0xFFFF);
     int16_t v2_y = (int16_t) (args[5] >> 16) & 0xFFFF;
 
-    uint32_t first_color_r = args[0] & 0xFF + 10;
-    uint32_t first_color_g = (args[0] >> 8) & 0xFF + 10;
-    uint32_t first_color_b = (args[0] >> 16) & 0xFF + 10;
+    uint8_t v0_col_r = args[0] & 0xFF;
+    uint8_t v0_col_g = (args[0] >> 8) & 0xFF;
+    uint8_t v0_col_b = (args[0] >> 16) & 0xFF;
+
+    uint8_t v1_col_r = args[2] & 0xFF;
+    uint8_t v1_col_g = (args[2] >> 8) & 0xFF;
+    uint8_t v1_col_b = (args[2] >> 16) & 0xFF;
+
+    uint8_t v2_col_r = args[4] & 0xFF;
+    uint8_t v2_col_g = (args[4] >> 8) & 0xFF;
+    uint8_t v2_col_b = (args[4] >> 16) & 0xFF;
 
     #ifdef LOG_DEBUG_RENDERER
     log_debug("RENDERER", "Gouraud Triangle | v0: %d, %d v1: %d, %d v2: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y);
     #endif
 
-    float vertices[] =
-    {
-        v2_x, v2_y, 0.0,
-        v0_x, v0_y, 0.0,
-        v1_x, v1_y, 0.0
-    };
-
-    glColor3ub(first_color_r, first_color_g, first_color_b);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 0, vertices);
-    glDrawArrays(GL_TRIANGLES, 0, 3);
-    glDisableClientState(GL_VERTEX_ARRAY);
+    renderer_push_vertex(renderer, v0_x, v0_y, v0_col_r, v0_col_g, v0_col_b);
+    renderer_push_vertex(renderer, v1_x, v1_y, v1_col_r, v1_col_g, v1_col_b);
+    renderer_push_vertex(renderer, v2_x, v2_y, v2_col_r, v2_col_g, v2_col_b);
 }
 
 void renderer_gouraud_quad(renderer_t *renderer, uint32_t *args)
@@ -249,25 +263,31 @@ void renderer_gouraud_quad(renderer_t *renderer, uint32_t *args)
     int16_t v3_x = (int16_t) (args[7] & 0xFFFF);
     int16_t v3_y = (int16_t) (args[7] >> 16) & 0xFFFF;
 
-    uint32_t first_color_r = args[0] & 0xFF;
-    uint32_t first_color_g = (args[0] >> 8) & 0xFF;
-    uint32_t first_color_b = (args[0] >> 16) & 0xFF;
+    uint8_t v0_col_r = args[0] & 0xFF;
+    uint8_t v0_col_g = (args[0] >> 8) & 0xFF;
+    uint8_t v0_col_b = (args[0] >> 16) & 0xFF;
+
+    uint8_t v1_col_r = args[2] & 0xFF;
+    uint8_t v1_col_g = (args[2] >> 8) & 0xFF;
+    uint8_t v1_col_b = (args[2] >> 16) & 0xFF;
+
+    uint8_t v2_col_r = args[4] & 0xFF;
+    uint8_t v2_col_g = (args[4] >> 8) & 0xFF;
+    uint8_t v2_col_b = (args[4] >> 16) & 0xFF;
+
+    uint8_t v3_col_r = args[6] & 0xFF;
+    uint8_t v3_col_g = (args[6] >> 8) & 0xFF;
+    uint8_t v3_col_b = (args[6] >> 16) & 0xFF;
 
     #ifdef LOG_DEBUG_RENDERER
     log_debug("RENDERER", "Gouraud Quad | v0: %d, %d v1: %d, %d v2: %d, %d v3: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y, v3_x, v3_y);
     #endif
 
-    float vertices[] =
-    {
-        v3_x, v3_y, 0.0,
-        v2_x, v2_y, 0.0,
-        v0_x, v0_y, 0.0,
-        v1_x, v1_y, 0.0
-    };
+    renderer_push_vertex(renderer, v0_x, v0_y, v0_col_r, v0_col_g, v0_col_b);
+    renderer_push_vertex(renderer, v1_x, v1_y, v1_col_r, v1_col_g, v1_col_b);
+    renderer_push_vertex(renderer, v2_x, v2_y, v2_col_r, v2_col_g, v2_col_b);
 
-    glColor3ub(first_color_r, first_color_g, first_color_b);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 0, vertices);
-    glDrawArrays(GL_QUADS, 0, 4);
-    glDisableClientState(GL_VERTEX_ARRAY);
+    renderer_push_vertex(renderer, v1_x, v1_y, v1_col_r, v1_col_g, v1_col_b);
+    renderer_push_vertex(renderer, v2_x, v2_y,  v2_col_r, v2_col_g, v2_col_b);
+    renderer_push_vertex(renderer, v3_x, v3_y, v3_col_r, v3_col_g, v3_col_b);
 }
