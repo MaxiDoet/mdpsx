@@ -115,19 +115,15 @@ void renderer_init(renderer_t *renderer, SDL_Window *window, SDL_Renderer *sdl_r
 
     glewInit();
 
-    glViewport(0, 0, 800, 600);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, 800, 0, 600, 0, 1);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
     renderer->program = renderer_create_program("renderer/vertex.glsl", "renderer/fragment.glsl");
     glUseProgram(renderer->program);
 
     glGenBuffers(1, &renderer->vbo);
     glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(renderer->vertex_buffer), renderer->vertex_buffer, GL_STATIC_DRAW);
+
+    glGenTextures(1, &renderer->texture_id);
+    glBindTexture(GL_TEXTURE_2D, renderer->texture_id);
 }
 
 void renderer_render(renderer_t *renderer)
@@ -136,19 +132,24 @@ void renderer_render(renderer_t *renderer)
 
     glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
     glBufferData(GL_ARRAY_BUFFER, sizeof(renderer->vertex_buffer), renderer->vertex_buffer, GL_STATIC_DRAW);
-    glEnableVertexAttribArray(0);
-    glEnableVertexAttribArray(1);
 
     // v_pos
+    glEnableVertexAttribArray(0);
     glVertexAttribIPointer(0, 2, GL_SHORT, sizeof(vertex_t), (void*) 0);
-    
+
     // v_col
+    glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex_t), (void*) 4);
+
+    // v_uv
+    glEnableVertexAttribArray(2);
+    glVertexAttribIPointer(2, 2, GL_SHORT, sizeof(vertex_t), (void*) 7);
 
     glDrawArrays(GL_TRIANGLES, 0, renderer->vertex_buffer_index);
 
     glDisableVertexAttribArray(0);
     glDisableVertexAttribArray(1);
+    glDisableVertexAttribArray(2);
 
     SDL_GL_SwapWindow(renderer->window);
 

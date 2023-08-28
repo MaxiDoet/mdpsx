@@ -9,15 +9,22 @@
 
 //#define LOG_DEBUG_R3000
 //#define LOG_DEBUG_R3000_EXCEPTIONS
+
 //#define LOG_DEBUG_BUS_READ
 //#define LOG_DEBUG_BUS_WRITE
 //#define LOG_DEBUG_BUS_WRITE_IO
+
 //#define LOG_DEBUG_GPU_READ
-//#define LOG_DEBUG_GPU_COMMANDS
-#define LOG_DEBUG_RENDERER
+#define LOG_DEBUG_GPU_COMMANDS
+
 //#define LOG_DEBUG_DMA
+
+//#define LOG_DEBUG_TIMER
+
+#define LOG_DEBUG_RENDERER
+
 //#define LOG_DEBUG_BIOS
-#define LOG_DEBUG_BIOS_TTY
+//#define LOG_DEBUG_BIOS_TTY
 
 void log_info(char *prefix, const char *format, ...);
 void log_error(char *prefix, const char *format, ...);

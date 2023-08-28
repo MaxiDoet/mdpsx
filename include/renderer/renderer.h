@@ -14,6 +14,9 @@ typedef struct vertex_t {
     GLubyte r;
     GLubyte g;
     GLubyte b;
+
+    GLshort u;
+    GLshort v;
 } vertex_t;
 
 typedef struct renderer_t {
@@ -25,6 +28,7 @@ typedef struct renderer_t {
     uint32_t program;
     vertex_t vertex_buffer[1000];
     uint32_t vertex_buffer_index;
+    GLuint texture_id;
 } renderer_t;
 
 void renderer_init(renderer_t *renderer, SDL_Window *window, SDL_Renderer *sdl_renderer, SDL_GLContext *gl_context);

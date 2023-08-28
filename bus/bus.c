@@ -330,6 +330,10 @@ uint32_t bus_read(bus_state_t *state, uint8_t size, uint32_t addr)
         result = state->i_mask;
     } else if (phy_addr >= 0x1F801080 && phy_addr <= 0x1F8010FC) {
         result = dma_read(&state->dma_state, phy_addr);
+    } else if (phy_addr >= 0x1F801100 && phy_addr <= 0x1F801128) {
+        result = timer_read(&state->timer_state, phy_addr);
+    } else if (phy_addr >= 0x1F801800 && phy_addr <= 0x1F801803) {
+        printf("cdrom: %x\n", phy_addr);
     } else if (phy_addr == 0x1F801810 || phy_addr == 0x1F801814) {
         result = gpu_read(&state->gpu_state, phy_addr);
     } else if (phy_addr >= 0x1FC00000 && phy_addr <= 0x1FC7FFFF) {
@@ -340,6 +344,8 @@ uint32_t bus_read(bus_state_t *state, uint8_t size, uint32_t addr)
         } else {
             result = *((uint32_t *) &state->bios[phy_addr & 0x7FFFF]);
         }
+    } else {
+        //printf("else read: %x\n", phy_addr);
     }
 
     #ifdef LOG_DEBUG_BUS_READ
@@ -407,8 +413,14 @@ void bus_write(bus_state_t *state, uint8_t size, uint32_t addr, uint32_t value)
         #endif
     } else if (phy_addr >= 0x1F801080 && phy_addr <= 0x1F8010FC) {
         dma_write(&state->dma_state, state, phy_addr, value);
+    } else if (phy_addr >= 0x1F801100 && phy_addr <= 0x1F801128) {
+        timer_write(&state->timer_state, phy_addr, value);
+    } else if (phy_addr >= 0x1F801800 && phy_addr <= 0x1F801803) {
+        printf("cdrom: %x\n", phy_addr);
     } else if (phy_addr == 0x1F801810 || phy_addr == 0x1F801814) {
         gpu_write(&state->gpu_state, phy_addr, value);
+    } else if (phy_addr >= 0x1F801C00 && phy_addr <= 0x1F801FFF) {
+        //printf("spu %x %x\n", phy_addr, value);
     } else if (phy_addr == 0x1F802041) {
         #ifdef LOG_DEBUG_BUS_WRITE_IO
         log_debug("BUS", "POST %x\n", value);
@@ -417,7 +429,9 @@ void bus_write(bus_state_t *state, uint8_t size, uint32_t addr, uint32_t value)
         #ifdef LOG_DEBUG_BUS_WRITE_IO
         log_debug("BUS", "%x -> Cache Control\n", value);
         #endif
-    } 
+    } else {
+        //printf("else write: %x\n", phy_addr);
+    }
 
     #ifdef LOG_DEBUG_BUS_WRITE
     log_debug("BUS", "%08x -> %08x (%08x) | test: %08x\n", value, addr, phy_addr, bus_read(state, size, addr));

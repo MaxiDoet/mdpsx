@@ -1,4 +1,4 @@
-objs := mdpsx.o log.o cpu/r3000.o bus/bus.o gpu/gpu.o renderer/renderer.o
+objs := mdpsx.o log.o cpu/r3000.o bus/bus.o gpu/gpu.o timer/timer.o renderer/renderer.o
 
 CFLAGS := -Iinclude -lglfw -lGL -lSDL2 -lGLEW -lSDL2_image -g3 -O0 # -Wall -Wextra
 

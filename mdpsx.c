@@ -52,6 +52,7 @@ int main()
     /* Init memory */
     bus_state.ram = (uint8_t *) malloc(2048 * 1024);
     bus_state.scratchpad = (uint8_t *) malloc(1024);
+    bus_state.gpu_state.vram = (uint8_t *) malloc(512 * 2048);
 
     r3000_state.debug_enabled = &bus_state.debug_enabled;
 
@@ -62,7 +63,7 @@ int main()
     }
 
     /* Create window */
-    SDL_Window *window = SDL_CreateWindow("mdpsx", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_OPENGL);
+    SDL_Window *window = SDL_CreateWindow("mdpsx", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 512, SDL_WINDOW_OPENGL);
 
     if (!window) {
         log_error("mdpsx", "Failed to init window");
@@ -101,9 +102,10 @@ int main()
 
         for (uint32_t i=0; i < 10000; i++) {
             r3000_step(&r3000_state, &bus_state);
+            
+            timer_channel_tick(&bus_state.timer_state.channel_0, 0);
+            timer_channel_tick(&bus_state.timer_state.channel_1, 1);
+            timer_channel_tick(&bus_state.timer_state.channel_2, 2);
         }
-
-        //renderer_render(&renderer);
-        //renderer_swap(&renderer);
     }
 }

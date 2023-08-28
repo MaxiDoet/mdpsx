@@ -52,7 +52,21 @@ void r3000_branch(r3000_state_t *r3000_state, uint32_t addr)
     r3000_state->branch_addr = addr;
 }
 
-int test = 0;
+void r3000_check_irqs(r3000_state_t *r3000_state, bus_state_t *bus_state)
+{
+    bool irq = false;
+
+    if (bus_state->timer_state.channel_0.irq_req) {
+        irq = true;  
+        bus_state->timer_state.channel_0.irq_req = false;
+    }
+
+    if (irq) {
+        log_debug("IRQ", "Interrupt\n");
+
+        r3000_exception(r3000_state, COP0_CAUSE_INT);
+    }
+}
 
 void r3000_exception(r3000_state_t *r3000_state, uint8_t cause) {
     // Save current mode
@@ -106,6 +120,8 @@ void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
         r3000_state->branch_delay_slot_state = DELAY_SLOT_STATE_DELAY_CYCLE;
     }
 
+    r3000_check_irqs(r3000_state, bus_state);
+
     uint32_t instruction = bus_read(bus_state, BUS_SIZE_DWORD, r3000_state->pc);
 
     uint8_t opcode = (instruction & 0x0FC000000) >> 26;
@@ -123,18 +139,6 @@ void r3000_step(r3000_state_t *r3000_state, bus_state_t *bus_state)
 
     /* J-Type */    
     uint32_t imm_jump = (instruction & 0x03FFFFFF);
-
-    /*
-    if (r3000_state->cycles == 50711080) {
-        *r3000_state->debug_enabled = true;
-
-        for (uint32_t i=0; i < 50; i++) {
-            printf("%08X ", bus_read(bus_state, BUS_SIZE_DWORD, 0x00138D3C + i * 4));
-        }
-
-        printf("\n");
-    }
-    */
 
     #ifdef LOG_DEBUG_R3000
     if (*r3000_state->debug_enabled) {

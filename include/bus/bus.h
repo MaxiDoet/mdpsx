@@ -6,6 +6,7 @@
 
 #include "gpu/gpu.h"
 #include "bus/dma.h"
+#include "timer/timer.h"
 
 #define BUS_SIZE_BYTE   0
 #define BUS_SIZE_WORD   1
@@ -21,6 +22,7 @@ typedef struct bus_state_t {
 
     gpu_state_t gpu_state;
     dma_state_t dma_state;
+    timer_state_t timer_state;
 
     bool debug_enabled;
 } bus_state_t;

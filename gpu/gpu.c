@@ -295,6 +295,9 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
                     width = ((width - 1) & 0x3FF) + 1;
                     height = ((height - 1) & 0x3FF) + 1;
 
+                    gpu_state->vram_transfer_loc_x = gpu_state->command_buf[1] & 0x0000FFFF;
+                    gpu_state->vram_transfer_loc_y = (gpu_state->command_buf[1] >> 16) & 0x0000FFFF;
+
                     gpu_state->command_buf_left = width * height / 2;
                     gpu_state->state = GPU_STATE_WAITING_FOR_VRAM_DATA;
 
@@ -307,6 +310,8 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
         #ifdef LOG_DEBUG_GPU_COMMANDS
         log_debug("GPU", "GP0 VRAM_DATA (%08X)\n", command);
         #endif
+
+        gpu_state->vram[gpu_state->vram_transfer_loc_x / 2 * gpu_state->vram_transfer_loc_y] = command;
 
         if (gpu_state->command_buf_left == 0) {
             gpu_state->command_buf_index = 0;
@@ -326,13 +331,6 @@ void gpu_gp1_dma_direction(gpu_state_t *gpu_state, uint32_t command)
     #endif
 
     gpu_state->dma_direction = direction;
-
-    /*
-    if (direction == 0) {
-        gpu_state->command_buf_index = 0;
-        gpu_state->state = GPU_STATE_WAITING_FOR_CMD;
-    }
-    */
 }
 
 void gpu_gp1_display_area(gpu_state_t *gpu_state, uint32_t command)

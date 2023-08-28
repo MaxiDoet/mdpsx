@@ -14,6 +14,11 @@
 typedef struct gpu_state_t {
     renderer_t *renderer;
 
+    uint8_t *vram;
+
+    uint32_t vram_transfer_loc_x;
+    uint32_t vram_transfer_loc_y;
+
     uint16_t horizontal_resolution;
     uint16_t vertical_resolution;
     bool pal;
