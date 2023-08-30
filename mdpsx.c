@@ -10,6 +10,7 @@
 
 #include "cpu/r3000.h"
 #include "bus/bus.h"
+#include "bios/bios.h"
 #include "renderer/renderer.h"
 #include "log.h"
 
@@ -17,21 +18,6 @@ bool running = true;
 r3000_state_t r3000_state;
 bus_state_t bus_state;
 renderer_t renderer;
-
-/*
-typedef struct compute_thread_args_t {
-    r3000_state_t *r3000_state;
-    bus_state_t *bus_state;
-} compute_thread_args_t;
-
-void *compute_thread(void *args) {
-    compute_thread_args_t *compute_thread_args = (compute_thread_args_t *) args;
-    
-    while(running) {
-        r3000_step(compute_thread_args->r3000_state, compute_thread_args->bus_state);
-    }
-}
-*/
 
 int main()
 {
@@ -41,8 +27,7 @@ int main()
     fread(bus_state.bios, 1, 524288, bios_fp);
     fclose(bios_fp);
 
-    uint32_t bios_date = *((uint32_t *) (bus_state.bios + 0x100));
-    log_info("mdpsx", "Bios | Date: %x/%x/%x\n", (bios_date & 0x0000FF00) >> 8, bios_date & 0x000000FF, (bios_date & 0xFFFF0000) >> 16);
+    bios_print_header(bus_state.bios);
 
     /* Init CPU */
     r3000_state.pc_instruction = 0xBFC00000;
@@ -83,14 +68,6 @@ int main()
 
     renderer_init(&renderer, window, sdl_renderer, gl_context);
     bus_state.gpu_state.renderer = &renderer;
-
-    /* Init seperate compute thread*/
-    //compute_thread_args_t compute_thread_args;
-    //compute_thread_args.r3000_state = &r3000_state;
-    //compute_thread_args.bus_state = &bus_state;
-    //pthread_t compute_thread_id;
-    //pthread_create(&compute_thread_id, NULL, compute_thread, &compute_thread_args);
-    //pthread_join(compute_thread_id, NULL);
 
     SDL_Event event;
     while(running) {

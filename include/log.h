@@ -15,7 +15,7 @@
 //#define LOG_DEBUG_BUS_WRITE_IO
 
 //#define LOG_DEBUG_GPU_READ
-#define LOG_DEBUG_GPU_COMMANDS
+//#define LOG_DEBUG_GPU_COMMANDS
 
 //#define LOG_DEBUG_DMA
 
