@@ -311,7 +311,7 @@ void gpu_send_gp0_command(gpu_state_t *gpu_state, uint32_t command)
         log_debug("GPU", "GP0 VRAM_DATA (%08X)\n", command);
         #endif
 
-        gpu_state->vram[gpu_state->vram_transfer_loc_x / 2 * gpu_state->vram_transfer_loc_y] = command;
+        gpu_state->renderer->vram[gpu_state->vram_transfer_loc_x][gpu_state->vram_transfer_loc_y] = command;
 
         if (gpu_state->command_buf_left == 0) {
             gpu_state->command_buf_index = 0;

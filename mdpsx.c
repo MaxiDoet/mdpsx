@@ -37,7 +37,6 @@ int main()
     /* Init memory */
     bus_state.ram = (uint8_t *) malloc(2048 * 1024);
     bus_state.scratchpad = (uint8_t *) malloc(1024);
-    bus_state.gpu_state.vram = (uint8_t *) malloc(512 * 2048);
 
     r3000_state.debug_enabled = &bus_state.debug_enabled;
 

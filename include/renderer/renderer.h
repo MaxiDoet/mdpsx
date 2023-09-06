@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 #include <GL/glew.h>
 #include <GL/gl.h>
@@ -23,9 +24,8 @@ typedef struct vertex_t {
 
 typedef struct renderer_entry_data_t {
     GLshort positions[6];
-    //GLubyte colors[9];
+    GLfloat uvs[6];
     GLfloat colors[9];
-    //GLshort uvs[6];
 } renderer_entry_data_t;
 
 typedef struct renderer_entry_t {    
@@ -33,6 +33,7 @@ typedef struct renderer_entry_t {
 
     GLuint vbo;
     GLuint vao;
+    GLuint texture;
 } renderer_entry_t;
 
 typedef struct renderer_t {
@@ -42,6 +43,8 @@ typedef struct renderer_t {
 
     GLuint vbo;
     GLuint vao;
+
+    uint16_t vram[1024][512];
 
     uint32_t program;
     //vertex_t vertex_buffer[1000];

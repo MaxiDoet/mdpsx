@@ -96,22 +96,24 @@ uint32_t renderer_create_program(char *vertex_path, char *fragment_path)
     return program;
 }
 
-/*
-void renderer_push_vertex(renderer_t *renderer, GLshort x, GLshort y, uint8_t r, uint8_t g, uint8_t b)
-{
-    renderer->vertex_buffer[renderer->vertex_buffer_index].x = x;
-    renderer->vertex_buffer[renderer->vertex_buffer_index].y = y;
-    renderer->vertex_buffer[renderer->vertex_buffer_index].r = r;
-    renderer->vertex_buffer[renderer->vertex_buffer_index].g = g;
-    renderer->vertex_buffer[renderer->vertex_buffer_index++].b = b;
-}
-*/
+typedef struct renderer_push_args_t {
+    GLshort positions[6];
+    GLfloat uvs[6];
+    GLfloat colors[9];
 
-void renderer_push(renderer_t *renderer, renderer_entry_data_t data)
+    uint8_t *texture_data;
+    uint16_t texture_width;
+    uint16_t texture_height;
+} renderer_push_args_t;
+
+void renderer_push(renderer_t *renderer, renderer_push_args_t args)
 {
     renderer_entry_t *entry = &renderer->entries[renderer->entries_index++];
+    renderer_entry_data_t *data = &entry->data;
 
-    entry->data = data;
+    memcpy(data->positions, args.positions, 6 * sizeof(short));
+    memcpy(data->uvs, args.uvs, 6 * sizeof(short));
+    memcpy(data->colors, args.colors, 9 * sizeof(float));
 
     // Create and bind VBO
     glGenBuffers(1, &entry->vbo);
@@ -124,23 +126,28 @@ void renderer_push(renderer_t *renderer, renderer_entry_data_t data)
 
     // v_pos
     glEnableVertexAttribArray(0);
-    GLint v_pos = glGetAttribLocation(renderer->program, "v_pos");
-    glVertexAttribIPointer(v_pos, 2, GL_SHORT, 0, (void*) offsetof(renderer_entry_data_t, positions));
-
-    // v_col
-    //glEnableVertexAttribArray(1);
-    //GLint v_col = glGetAttribLocation(renderer->program, "v_color");
-    //glVertexAttribPointer(v_col, 3, GL_UNSIGNED_BYTE, GL_TRUE, 0, (void*) offsetof(renderer_entry_data_t, colors));
-
-    glEnableVertexAttribArray(1);
-    GLint v_col = glGetAttribLocation(renderer->program, "v_color");
-    glVertexAttribPointer(v_col, 3, GL_FLOAT, GL_FALSE, 0, (void*) offsetof(renderer_entry_data_t, colors));
+    glVertexAttribIPointer(0, 2, GL_SHORT, 0, (void*) offsetof(renderer_entry_data_t, positions));
 
     // v_uv
-    //glEnableVertexAttribArray(2);
-    //glVertexAttribIPointer(2, 2, GL_SHORT, 0, (void*) offsetof(renderer_entry_data_t, uvs));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, (void*) offsetof(renderer_entry_data_t, uvs));
+
+    // v_col
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (void*) offsetof(renderer_entry_data_t, colors));
 
     glBindVertexArray(0);
+
+    if (args.texture_data != NULL) {
+        // Create and bind texture
+        glGenTextures(1, &entry->texture);
+        glBindTexture(GL_TEXTURE_2D, entry->texture);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, args.texture_width, args.texture_height, 0, GL_RGB, GL_UNSIGNED_BYTE, args.texture_data);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    }
 }
 
 void renderer_init(renderer_t *renderer, SDL_Window *window, SDL_Renderer *sdl_renderer, SDL_GLContext *gl_context)
@@ -161,36 +168,14 @@ void renderer_init(renderer_t *renderer, SDL_Window *window, SDL_Renderer *sdl_r
 
 void renderer_render(renderer_t *renderer)
 {
-    /*
     glUseProgram(renderer->program);
-
-    glBindBuffer(GL_ARRAY_BUFFER, renderer->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(renderer->vertex_buffer), renderer->vertex_buffer, GL_STATIC_DRAW);
-
-    // v_pos
-    glEnableVertexAttribArray(0);
-    glVertexAttribIPointer(0, 2, GL_SHORT, sizeof(vertex_t), (void*) offsetof(vertex_t, x));
-
-    // v_col
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(vertex_t), (void*) offsetof(vertex_t, r));
-
-    // v_uv
-    glEnableVertexAttribArray(2);
-    glVertexAttribIPointer(2, 2, GL_SHORT, sizeof(vertex_t), (void*) offsetof(vertex_t, u));
-
-    glDrawArrays(GL_TRIANGLES, 0, renderer->vertex_buffer_index);
-
-    glDisableVertexAttribArray(0);
-    glDisableVertexAttribArray(1);
-    glDisableVertexAttribArray(2);
-    */
-
-    glUseProgram(renderer->program);
+    glUniform1i(glGetUniformLocation(renderer->program, "ourTexture"), 0);
 
     for (uint32_t i=0; i < renderer->entries_index; i++) {
         renderer_entry_t *entry = &renderer->entries[i];
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, entry->texture);
         glBindVertexArray(entry->vao);
 
         glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -223,128 +208,155 @@ void renderer_monochrome_opaque_quad(renderer_t *renderer, uint32_t *args)
     log_debug("RENDERER", "Monochrome Opaque Quad | v0: %d, %d v1: %d, %d v2: %d, %d v3: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y, v3_x, v3_y);
     #endif
 
-    /*
-    renderer_push_vertex(renderer, v0_x, v0_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_args_t args0;
+    renderer_push_args_t args1;
 
-    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v3_x, v3_y, first_color_r, first_color_g, first_color_b);
-    */
+    args0.positions[0] = v0_x;
+    args0.positions[1] = v0_y;
+    args0.positions[2] = v1_x;
+    args0.positions[3] = v1_y;
+    args0.positions[4] = v2_x;
+    args0.positions[5] = v2_y;
 
-    renderer_entry_data_t data0;
-    renderer_entry_data_t data1;
+    args1.positions[0] = v1_x;
+    args1.positions[1] = v1_y;
+    args1.positions[2] = v2_x;
+    args1.positions[3] = v2_y;
+    args1.positions[4] = v3_x;
+    args1.positions[5] = v3_y;
 
-    data0.positions[0] = v0_x;
-    data0.positions[1] = v0_y;
-    data0.positions[2] = v1_x;
-    data0.positions[3] = v1_y;
-    data0.positions[4] = v2_x;
-    data0.positions[5] = v2_y;
+    args0.colors[0] = (float) (first_color_r / 255.0f);
+    args0.colors[1] = (float) (first_color_g / 255.0f);
+    args0.colors[2] = (float) (first_color_b / 255.0f);
+    args0.colors[3] = (float) (first_color_r / 255.0f);
+    args0.colors[4] = (float) (first_color_g / 255.0f);
+    args0.colors[5] = (float) (first_color_b / 255.0f);
+    args0.colors[6] = (float) (first_color_r / 255.0f);
+    args0.colors[7] = (float) (first_color_g / 255.0f);
+    args0.colors[8] = (float) (first_color_b / 255.0f);
 
-    data1.positions[0] = v1_x;
-    data1.positions[1] = v1_y;
-    data1.positions[2] = v2_x;
-    data1.positions[3] = v2_y;
-    data1.positions[4] = v3_x;
-    data1.positions[5] = v3_y;
+    args1.colors[0] = (float) (first_color_r / 255.0f);
+    args1.colors[1] = (float) (first_color_g / 255.0f);
+    args1.colors[2] = (float) (first_color_b / 255.0f);
+    args1.colors[3] = (float) (first_color_r / 255.0f);
+    args1.colors[4] = (float) (first_color_g / 255.0f);
+    args1.colors[5] = (float) (first_color_b / 255.0f);
+    args1.colors[6] = (float) (first_color_r / 255.0f);
+    args1.colors[7] = (float) (first_color_g / 255.0f);
+    args1.colors[8] = (float) (first_color_b / 255.0f);
 
-    data0.colors[0] = (float) (first_color_r / 255.0f);
-    data0.colors[1] = (float) (first_color_g / 255.0f);
-    data0.colors[2] = (float) (first_color_b / 255.0f);
-    data0.colors[3] = (float) (first_color_r / 255.0f);
-    data0.colors[4] = (float) (first_color_g / 255.0f);
-    data0.colors[5] = (float) (first_color_b / 255.0f);
-    data0.colors[6] = (float) (first_color_r / 255.0f);
-    data0.colors[7] = (float) (first_color_g / 255.0f);
-    data0.colors[8] = (float) (first_color_b / 255.0f);
-
-    data1.colors[0] = (float) (first_color_r / 255.0f);
-    data1.colors[1] = (float) (first_color_g / 255.0f);
-    data1.colors[2] = (float) (first_color_b / 255.0f);
-    data1.colors[3] = (float) (first_color_r / 255.0f);
-    data1.colors[4] = (float) (first_color_g / 255.0f);
-    data1.colors[5] = (float) (first_color_b / 255.0f);
-    data1.colors[6] = (float) (first_color_r / 255.0f);
-    data1.colors[7] = (float) (first_color_g / 255.0f);
-    data1.colors[8] = (float) (first_color_b / 255.0f);
-
-    renderer_push(renderer, data0);
-    renderer_push(renderer, data1);
+    renderer_push(renderer, args0);
+    renderer_push(renderer, args1);
 }
+
+typedef struct vram_4bit_bitmap_pixel {
+    uint8_t left            : 4;
+    uint8_t middle_left     : 4;
+    uint8_t middle_right    : 4;
+    uint8_t right           : 4;
+} vram_4bit_bitmap_pixel;
 
 void renderer_textured_blend_quad(renderer_t *renderer, uint32_t *args)
 {
     int16_t v0_x = (int16_t) (args[1] & 0xFFFF);
     int16_t v0_y = (int16_t) (args[1] >> 16) & 0xFFFF;
+    int16_t v0_u = (int16_t) (args[2] & 0xFF);
+    int16_t v0_v = (int16_t) (args[2] >> 8) & 0xFF;
 
     int16_t v1_x = (int16_t) (args[3] & 0xFFFF);
     int16_t v1_y = (int16_t) (args[3] >> 16) & 0xFFFF;
+    int16_t v1_u = (int16_t) (args[4] & 0xFF);
+    int16_t v1_v = (int16_t) (args[4] >> 8) & 0xFF;
 
     int16_t v2_x = (int16_t) (args[5] & 0xFFFF);
     int16_t v2_y = (int16_t) (args[5] >> 16) & 0xFFFF;
+    int16_t v2_u = (int16_t) (args[6] & 0xFF);
+    int16_t v2_v = (int16_t) (args[6] >> 8) & 0xFF;
 
     int16_t v3_x = (int16_t) (args[7] & 0xFFFF);
     int16_t v3_y = (int16_t) (args[7] >> 16) & 0xFFFF;
+    int16_t v3_u = (int16_t) (args[8] & 0xFF);
+    int16_t v3_v = (int16_t) (args[8] >> 8) & 0xFF;
 
     uint32_t first_color_r = args[0] & 0xFF;
     uint32_t first_color_g = (args[0] >> 8) & 0xFF;
     uint32_t first_color_b = (args[0] >> 16) & 0xFF;
 
+    uint8_t texture[256*4][256];
+    uint16_t clut_table[16];
+    uint8_t clut_x = (args[2] >> 16) & 0x3F;
+    uint8_t clut_y = ((args[2] >> 16) >> 6) & 0x1FF;
+    int16_t width = v1_x - v0_x;
+    int16_t height = v2_y - v0_y;
+
+    // Read clut table
+    for (uint8_t i=0; i < 16; i++) {
+        //clut_table[i] = renderer->vram[clut_x * 16 * i][clut_y];
+    }
+
+    for (int i=0; i < width / 4; i++) {
+        for (int j=0; j < height; j++) {
+            
+        }
+    }
+
     #ifdef LOG_DEBUG_RENDERER
     log_debug("RENDERER", "Textured Blend Quad | v0: %d, %d v1: %d, %d v2: %d, %d v3: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y, v3_x, v3_y);
     #endif
 
-    /*
-    renderer_push_vertex(renderer, v0_x, v0_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
+    renderer_push_args_t args0;
+    renderer_push_args_t args1;
 
-    renderer_push_vertex(renderer, v1_x, v1_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v2_x, v2_y, first_color_r, first_color_g, first_color_b);
-    renderer_push_vertex(renderer, v3_x, v3_y, first_color_r, first_color_g, first_color_b);
-    */
+    args0.positions[0] = v0_x;
+    args0.positions[1] = v0_y;
+    args0.positions[2] = v1_x;
+    args0.positions[3] = v1_y;
+    args0.positions[4] = v2_x;
+    args0.positions[5] = v2_y;
 
-    renderer_entry_data_t data0;
-    renderer_entry_data_t data1;
+    args1.positions[0] = v1_x;
+    args1.positions[1] = v1_y;
+    args1.positions[2] = v2_x;
+    args1.positions[3] = v2_y;
+    args1.positions[4] = v3_x;
+    args1.positions[5] = v3_y;
 
-    data0.positions[0] = v0_x;
-    data0.positions[1] = v0_y;
-    data0.positions[2] = v1_x;
-    data0.positions[3] = v1_y;
-    data0.positions[4] = v2_x;
-    data0.positions[5] = v2_y;
+    args0.uvs[0] = (float) ((v0_u / 512) - 1.0f);
+    args0.uvs[1] = (float) (1.0f - (v0_v / 256));
+    args0.uvs[2] = (float) ((v1_u / 512) - 1.0f);
+    args0.uvs[3] = (float) (1.0f - (v1_v / 256));
+    args0.uvs[4] = (float) ((v2_u / 512) - 1.0f);
+    args0.uvs[5] = (float) (1.0f - (v2_v / 256));
 
-    data1.positions[0] = v1_x;
-    data1.positions[1] = v1_y;
-    data1.positions[2] = v2_x;
-    data1.positions[3] = v2_y;
-    data1.positions[4] = v3_x;
-    data1.positions[5] = v3_y;
+    args1.uvs[0] = (float) ((v1_u / 512) - 1.0f);
+    args1.uvs[1] = (float) (1.0f - (v1_v / 256));
+    args1.uvs[2] = (float) ((v2_u / 512) - 1.0f);
+    args1.uvs[3] = (float) (1.0f - (v2_v / 256));
+    args1.uvs[4] = (float) ((v3_u / 512) - 1.0f);
+    args1.uvs[5] = (float) (1.0f - (v3_v / 256));
 
-    data0.colors[0] = (float) (first_color_r / 255.0f);
-    data0.colors[1] = (float) (first_color_g / 255.0f);
-    data0.colors[2] = (float) (first_color_b / 255.0f);
-    data0.colors[3] = (float) (first_color_r / 255.0f);
-    data0.colors[4] = (float) (first_color_g / 255.0f);
-    data0.colors[5] = (float) (first_color_b / 255.0f);
-    data0.colors[6] = (float) (first_color_r / 255.0f);
-    data0.colors[7] = (float) (first_color_g / 255.0f);
-    data0.colors[8] = (float) (first_color_b / 255.0f);
+    args0.colors[0] = (float) (first_color_r / 255.0f);
+    args0.colors[1] = (float) (first_color_g / 255.0f);
+    args0.colors[2] = (float) (first_color_b / 255.0f);
+    args0.colors[3] = (float) (first_color_r / 255.0f);
+    args0.colors[4] = (float) (first_color_g / 255.0f);
+    args0.colors[5] = (float) (first_color_b / 255.0f);
+    args0.colors[6] = (float) (first_color_r / 255.0f);
+    args0.colors[7] = (float) (first_color_g / 255.0f);
+    args0.colors[8] = (float) (first_color_b / 255.0f);
 
-    data1.colors[0] = (float) (first_color_r / 255.0f);
-    data1.colors[1] = (float) (first_color_g / 255.0f);
-    data1.colors[2] = (float) (first_color_b / 255.0f);
-    data1.colors[3] = (float) (first_color_r / 255.0f);
-    data1.colors[4] = (float) (first_color_g / 255.0f);
-    data1.colors[5] = (float) (first_color_b / 255.0f);
-    data1.colors[6] = (float) (first_color_r / 255.0f);
-    data1.colors[7] = (float) (first_color_g / 255.0f);
-    data1.colors[8] = (float) (first_color_b / 255.0f);
+    args1.colors[0] = (float) (first_color_r / 255.0f);
+    args1.colors[1] = (float) (first_color_g / 255.0f);
+    args1.colors[2] = (float) (first_color_b / 255.0f);
+    args1.colors[3] = (float) (first_color_r / 255.0f);
+    args1.colors[4] = (float) (first_color_g / 255.0f);
+    args1.colors[5] = (float) (first_color_b / 255.0f);
+    args1.colors[6] = (float) (first_color_r / 255.0f);
+    args1.colors[7] = (float) (first_color_g / 255.0f);
+    args1.colors[8] = (float) (first_color_b / 255.0f);
 
-    renderer_push(renderer, data0);
-    renderer_push(renderer, data1);
+    renderer_push(renderer, args0);
+    renderer_push(renderer, args1);
 }
 
 void renderer_gouraud_triangle(renderer_t *renderer, uint32_t *args)
@@ -374,32 +386,26 @@ void renderer_gouraud_triangle(renderer_t *renderer, uint32_t *args)
     log_debug("RENDERER", "Gouraud Triangle | v0: %d, %d v1: %d, %d v2: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y);
     #endif
 
-    /*
-    renderer_push_vertex(renderer, v0_x, v0_y, v0_col_r, v0_col_g, v0_col_b);
-    renderer_push_vertex(renderer, v1_x, v1_y, v1_col_r, v1_col_g, v1_col_b);
-    renderer_push_vertex(renderer, v2_x, v2_y, v2_col_r, v2_col_g, v2_col_b);
-    */
+    renderer_push_args_t args0;
 
-    renderer_entry_data_t data;
+    args0.positions[0] = v0_x;
+    args0.positions[1] = v0_y;
+    args0.positions[2] = v1_x;
+    args0.positions[3] = v1_y;
+    args0.positions[4] = v2_x;
+    args0.positions[5] = v2_y;
 
-    data.positions[0] = v0_x;
-    data.positions[1] = v0_y;
-    data.positions[2] = v1_x;
-    data.positions[3] = v1_y;
-    data.positions[4] = v2_x;
-    data.positions[5] = v2_y;
+    args0.colors[0] = (float) (v0_col_r / 255.0f);
+    args0.colors[1] = (float) (v0_col_g / 255.0f);
+    args0.colors[2] = (float) (v0_col_b / 255.0f);
+    args0.colors[3] = (float) (v1_col_r / 255.0f);
+    args0.colors[4] = (float) (v1_col_g / 255.0f);
+    args0.colors[5] = (float) (v1_col_b / 255.0f);
+    args0.colors[6] = (float) (v2_col_r / 255.0f);
+    args0.colors[7] = (float) (v2_col_g / 255.0f);
+    args0.colors[8] = (float) (v2_col_b / 255.0f);
 
-    data.colors[0] = (float) (v0_col_r / 255.0f);
-    data.colors[1] = (float) (v0_col_g / 255.0f);
-    data.colors[2] = (float) (v0_col_b / 255.0f);
-    data.colors[3] = (float) (v1_col_r / 255.0f);
-    data.colors[4] = (float) (v1_col_g / 255.0f);
-    data.colors[5] = (float) (v1_col_b / 255.0f);
-    data.colors[6] = (float) (v2_col_r / 255.0f);
-    data.colors[7] = (float) (v2_col_g / 255.0f);
-    data.colors[8] = (float) (v2_col_b / 255.0f);
-
-    renderer_push(renderer, data);
+    renderer_push(renderer, args0);
 }
 
 void renderer_gouraud_quad(renderer_t *renderer, uint32_t *args)
@@ -436,53 +442,43 @@ void renderer_gouraud_quad(renderer_t *renderer, uint32_t *args)
     log_debug("RENDERER", "Gouraud Quad | v0: %d, %d v1: %d, %d v2: %d, %d v3: %d, %d\n", v0_x, v0_y, v1_x, v1_y, v2_x, v2_y, v3_x, v3_y);
     #endif
 
-    /*
-    renderer_push_vertex(renderer, v0_x, v0_y, v0_col_r, v0_col_g, v0_col_b);
-    renderer_push_vertex(renderer, v1_x, v1_y, v1_col_r, v1_col_g, v1_col_b);
-    renderer_push_vertex(renderer, v2_x, v2_y, v2_col_r, v2_col_g, v2_col_b);
+    renderer_push_args_t args0;
+    renderer_push_args_t args1;
 
-    renderer_push_vertex(renderer, v1_x, v1_y, v1_col_r, v1_col_g, v1_col_b);
-    renderer_push_vertex(renderer, v2_x, v2_y,  v2_col_r, v2_col_g, v2_col_b);
-    renderer_push_vertex(renderer, v3_x, v3_y, v3_col_r, v3_col_g, v3_col_b);
-    */
+    args0.positions[0] = v0_x;
+    args0.positions[1] = v0_y;
+    args0.positions[2] = v1_x;
+    args0.positions[3] = v1_y;
+    args0.positions[4] = v2_x;
+    args0.positions[5] = v2_y;
 
-    renderer_entry_data_t data0;
-    renderer_entry_data_t data1;
+    args1.positions[0] = v1_x;
+    args1.positions[1] = v1_y;
+    args1.positions[2] = v2_x;
+    args1.positions[3] = v2_y;
+    args1.positions[4] = v3_x;
+    args1.positions[5] = v3_y;
 
-    data0.positions[0] = v0_x;
-    data0.positions[1] = v0_y;
-    data0.positions[2] = v1_x;
-    data0.positions[3] = v1_y;
-    data0.positions[4] = v2_x;
-    data0.positions[5] = v2_y;
+    args0.colors[0] = (float) (v0_col_r / 255.0f);
+    args0.colors[1] = (float) (v0_col_g / 255.0f);
+    args0.colors[2] = (float) (v0_col_b / 255.0f);
+    args0.colors[3] = (float) (v1_col_r / 255.0f);
+    args0.colors[4] = (float) (v1_col_g / 255.0f);
+    args0.colors[5] = (float) (v1_col_b / 255.0f);
+    args0.colors[6] = (float) (v2_col_r / 255.0f);
+    args0.colors[7] = (float) (v2_col_g / 255.0f);
+    args0.colors[8] = (float) (v2_col_b / 255.0f);
 
-    data1.positions[0] = v1_x;
-    data1.positions[1] = v1_y;
-    data1.positions[2] = v2_x;
-    data1.positions[3] = v2_y;
-    data1.positions[4] = v3_x;
-    data1.positions[5] = v3_y;
+    args1.colors[0] = (float) (v1_col_r / 255.0f);
+    args1.colors[1] = (float) (v1_col_g / 255.0f);
+    args1.colors[2] = (float) (v1_col_b / 255.0f);
+    args1.colors[3] = (float) (v2_col_r / 255.0f);
+    args1.colors[4] = (float) (v2_col_g / 255.0f);
+    args1.colors[5] = (float) (v2_col_b / 255.0f);
+    args1.colors[6] = (float) (v3_col_r / 255.0f);
+    args1.colors[7] = (float) (v3_col_g / 255.0f);
+    args1.colors[8] = (float) (v3_col_b / 255.0f);
 
-    data0.colors[0] = (float) (v0_col_r / 255.0f);
-    data0.colors[1] = (float) (v0_col_g / 255.0f);
-    data0.colors[2] = (float) (v0_col_b / 255.0f);
-    data0.colors[3] = (float) (v1_col_r / 255.0f);
-    data0.colors[4] = (float) (v1_col_g / 255.0f);
-    data0.colors[5] = (float) (v1_col_b / 255.0f);
-    data0.colors[6] = (float) (v2_col_r / 255.0f);
-    data0.colors[7] = (float) (v2_col_g / 255.0f);
-    data0.colors[8] = (float) (v2_col_b / 255.0f);
-
-    data1.colors[0] = (float) (v1_col_r / 255.0f);
-    data1.colors[1] = (float) (v1_col_g / 255.0f);
-    data1.colors[2] = (float) (v1_col_b / 255.0f);
-    data1.colors[3] = (float) (v2_col_r / 255.0f);
-    data1.colors[4] = (float) (v2_col_g / 255.0f);
-    data1.colors[5] = (float) (v2_col_b / 255.0f);
-    data1.colors[6] = (float) (v3_col_r / 255.0f);
-    data1.colors[7] = (float) (v3_col_g / 255.0f);
-    data1.colors[8] = (float) (v3_col_b / 255.0f);
-
-    renderer_push(renderer, data0);
-    renderer_push(renderer, data1);
+    renderer_push(renderer, args0);
+    renderer_push(renderer, args1);
 }
